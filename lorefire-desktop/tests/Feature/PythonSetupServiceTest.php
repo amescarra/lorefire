@@ -350,6 +350,36 @@ class PythonSetupServiceTest extends TestCase
         $this->assertSetupPs1ParsesInPowerShell($path);
     }
 
+    public function test_setup_ps1_rejects_microsoft_store_python_stubs(): void
+    {
+        $ps1 = file_get_contents(base_path('resources/python/setup.ps1'));
+        $this->assertIsString($ps1);
+
+        $this->assertStringContainsString('WindowsApps', $ps1);
+        $this->assertStringContainsString('9009', $ps1);
+        $this->assertStringContainsString("'-3.12'", $ps1);
+        $this->assertStringContainsString('Get-RealPythonVersion', $ps1);
+        $this->assertStringContainsString('download_runtime.ps1', $ps1);
+        $this->assertStringContainsString('Skipping empty or unsupported version', $ps1);
+
+        $this->assertLessThan(
+            strpos($ps1, "'python3'"),
+            strpos($ps1, "'-3.12'"),
+            'py -3.12 must be tried before the python3 Store alias.'
+        );
+        $this->assertLessThan(
+            strpos($ps1, "'python3'"),
+            strpos($ps1, "'python'"),
+            'A real python.exe name must be tried before python3.'
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/Or install Python 3\.9\+ system-wide/',
+            $ps1
+        );
+        $this->assertStringNotContainsString('install from the Microsoft Store', $ps1);
+    }
+
     private function assertSetupPs1ParsesInPowerShell(string $path): void
     {
         $shells = [];

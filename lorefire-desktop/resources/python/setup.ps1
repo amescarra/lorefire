@@ -179,32 +179,122 @@ function Invoke-Pip {
     Invoke-TimedCommand -Label $Label -FilePath $VenvPython -ArgumentList $all -TimeoutSec $TimeoutSec
 }
 
+function Test-IsWindowsAppsAlias {
+    param([string]$Path)
+    if (-not $Path) { return $false }
+    return ($Path -match '(?i)\\WindowsApps\\')
+}
+
+# Reject Microsoft Store python3 / python App Execution Aliases (empty -c
+# version, exit 9009, WindowsApps\python*.exe). Keep looking on failure.
+function Get-RealPythonVersion {
+    param(
+        [string]$FilePath,
+        [string[]]$PrefixArgs = @()
+    )
+    if (Test-IsWindowsAppsAlias $FilePath) {
+        Write-Host ('    Skipping Microsoft Store alias: ' + $FilePath)
+        return $null
+    }
+    $output = $null
+    $code = 0
+    try {
+        $output = & $FilePath @($PrefixArgs + @('-c', $pythonVersionCode)) 2>&1 | Out-String
+        $code = $LASTEXITCODE
+    } catch {
+        Write-Host ('    Skipping interpreter that failed to start: ' + $FilePath)
+        return $null
+    }
+    if ($null -eq $code) { $code = 0 }
+    $ver = ([string]$output).Trim()
+    if ($code -eq 9009) {
+        Write-Host ('    Skipping Store stub (exit 9009): ' + $FilePath)
+        return $null
+    }
+    if ($code -ne 0) {
+        Write-Host ('    Skipping interpreter exit ' + $code + ': ' + $FilePath)
+        return $null
+    }
+    if ($ver -match '(?i)was not found|Microsoft Store') {
+        Write-Host ('    Skipping Store stub message: ' + $FilePath)
+        return $null
+    }
+    if ($ver -notmatch '\(\s*3\s*,\s*(9|1[0-3])\s*\)') {
+        Write-Host ('    Skipping empty or unsupported version from ' + $FilePath + ': [' + $ver + ']')
+        return $null
+    }
+    return $ver
+}
+
+function Invoke-LocatedPython {
+    param([string[]]$ExtraArgs)
+    $exe = $script:PythonLaunch[0]
+    $prefix = @()
+    if ($script:PythonLaunch.Length -gt 1) {
+        $prefix = $script:PythonLaunch[1..($script:PythonLaunch.Length - 1)]
+    }
+    & $exe @($prefix + $ExtraArgs)
+}
+
 # -- Locate Python -------------------------------------------------------
-$PythonBin = $null
+# Prefer the bundled x86_64 runtime (download_runtime.ps1). Do not use ARM64
+# CPython here: torch 2.5.1 has no win_arm64 CPU wheels.
+$script:PythonLaunch = $null
 
 if (Test-Path $BundledRuntime) {
-    $ver = & $BundledRuntime -c $pythonVersionCode
-    Write-Host ('    Using bundled runtime: ' + $BundledRuntime + ' (' + $ver + ')')
-    $PythonBin = $BundledRuntime
-} else {
+    $ver = Get-RealPythonVersion -FilePath $BundledRuntime
+    if ($ver) {
+        Write-Host ('    Using bundled runtime: ' + $BundledRuntime + ' (' + $ver + ')')
+        $script:PythonLaunch = @($BundledRuntime)
+    } else {
+        Write-Host ('    Bundled runtime exists but is not usable: ' + $BundledRuntime)
+    }
+}
+
+if (-not $script:PythonLaunch) {
     Write-Host ('    Bundled runtime not found at ' + $BundledRuntime)
-    Write-Host '    Falling back to system Python...'
-    foreach ($candidate in @('python3.12', 'python3.11', 'python3.10', 'python3.9', 'python3', 'python')) {
-        if (Get-Command $candidate -ErrorAction SilentlyContinue) {
-            $ver = & $candidate -c $pythonVersionCode
-            Write-Host ('    Found system Python: ' + $candidate + ' (' + $ver + ')')
-            $PythonBin = $candidate
-            break
+    Write-Host '    Falling back to a real system Python (not the Microsoft Store alias)...'
+
+    $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyCmd -and $pyCmd.Source -and -not (Test-IsWindowsAppsAlias $pyCmd.Source)) {
+        foreach ($tag in @('-3.12', '-3.11', '-3.10', '-3.9', '-3')) {
+            $ver = Get-RealPythonVersion -FilePath $pyCmd.Source -PrefixArgs @($tag)
+            if ($ver) {
+                Write-Host ('    Found py launcher: py ' + $tag + ' (' + $ver + ')')
+                $script:PythonLaunch = @($pyCmd.Source, $tag)
+                break
+            }
+        }
+    }
+
+    if (-not $script:PythonLaunch) {
+        foreach ($candidate in @('python3.12', 'python3.11', 'python3.10', 'python3.9', 'python', 'python3')) {
+            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+            if (-not $cmd) { continue }
+            $src = $cmd.Source
+            if (-not $src) { $src = [string]$cmd.Path }
+            if (Test-IsWindowsAppsAlias $src) {
+                Write-Host ('    Skipping Microsoft Store alias: ' + $candidate + ' -> ' + $src)
+                continue
+            }
+            $ver = Get-RealPythonVersion -FilePath $src
+            if ($ver) {
+                Write-Host ('    Found system Python: ' + $src + ' (' + $ver + ')')
+                $script:PythonLaunch = @($src)
+                break
+            }
         }
     }
 }
 
-if (-not $PythonBin) {
+if (-not $script:PythonLaunch) {
     Write-Error (@'
-ERROR: No Python interpreter found.
-  Expected bundled runtime next to this script (runtime\python.exe).
-  To download it, run: powershell -ExecutionPolicy Bypass -File resources\python\download_runtime.ps1
-  Or install Python 3.9+ system-wide and re-run this script.
+ERROR: No usable Python interpreter found.
+  The Microsoft Store python3 / python App Execution Alias is not a real interpreter
+  (empty version probe, exit 9009, or a WindowsApps\python*.exe stub).
+  Download the bundled x86_64 runtime (required for torch 2.5.1 CPU wheels):
+    powershell -ExecutionPolicy Bypass -File resources\python\download_runtime.ps1
+  Then re-run: php artisan python:setup
 '@)
     exit 1
 }
@@ -221,7 +311,7 @@ if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
 # -- Create venv ---------------------------------------------------------
 if (-not (Test-Path $VenvDir)) {
     Write-Host ('==> Creating virtual environment at ' + $VenvDir + '...')
-    & $PythonBin -m venv --copies $VenvDir
+    Invoke-LocatedPython -ExtraArgs @('-m', 'venv', '--copies', $VenvDir)
     if ($LASTEXITCODE -ne 0) {
         Write-Error ('FAILED: python -m venv exited ' + $LASTEXITCODE)
         exit $LASTEXITCODE
