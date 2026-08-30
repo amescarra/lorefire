@@ -8,6 +8,146 @@ export const SPECIALIST_SCHOOLS = [
   'Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Illusionist', 'Invoker', 'Necromancer', 'Transmuter',
 ] as const
 
+/** Racial-handbook kit names + thin eligibility. No benefit tables or handbook prose. */
+export type RacialKit = {
+  name: string
+  races: readonly string[]
+  classes: readonly string[]
+  match?: 'all' | 'any'
+}
+
+export const HUMANOID_RACES = ['Half-Orc', 'Other'] as const
+
+export const RACIAL_KITS: readonly RacialKit[] = [
+  { name: 'Herbalist', races: ['Elf'], classes: ['Cleric'], match: 'any' },
+  { name: 'Archer', races: ['Elf'], classes: ['Fighter', 'Ranger'], match: 'any' },
+  { name: 'Wilderness Runner', races: ['Elf'], classes: ['Fighter', 'Ranger'], match: 'any' },
+  { name: 'Windrider', races: ['Elf'], classes: ['Fighter', 'Ranger'], match: 'any' },
+  { name: 'Elven Minstrel', races: ['Elf'], classes: ['Mage', 'Thief'], match: 'all' },
+  { name: 'Spellfilcher', races: ['Elf'], classes: ['Mage', 'Thief'], match: 'all' },
+  { name: 'Bladesinger', races: ['Elf'], classes: ['Fighter', 'Mage'], match: 'all' },
+  { name: 'War Wizard', races: ['Elf'], classes: ['Fighter', 'Mage'], match: 'all' },
+  { name: 'Huntsman', races: ['Elf'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Collector', races: ['Elf'], classes: ['Fighter', 'Mage', 'Thief'], match: 'all' },
+  { name: 'Infiltrator', races: ['Elf'], classes: ['Fighter', 'Mage', 'Thief'], match: 'all' },
+  { name: 'Undead Slayer', races: ['Elf'], classes: [], match: 'any' },
+
+  { name: 'Animal Master', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Axe for Hire', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Battlerager', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Clansdwarf', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Hearth Guard', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Highborn', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Outcast', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Rapid Response Rider', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Sharpshooter', races: ['Dwarf'], classes: ['Fighter'], match: 'any' },
+  { name: 'Crafts Priest', races: ['Dwarf'], classes: ['Cleric'], match: 'any' },
+  { name: 'Pariah', races: ['Dwarf'], classes: ['Cleric'], match: 'any' },
+  { name: 'Patrician', races: ['Dwarf'], classes: ['Cleric'], match: 'any' },
+  { name: 'Ritual Priest', races: ['Dwarf'], classes: ['Cleric'], match: 'any' },
+  { name: 'Diplomat', races: ['Dwarf'], classes: ['Thief'], match: 'any' },
+  { name: 'Entertainer', races: ['Dwarf'], classes: ['Thief'], match: 'any' },
+  { name: 'Locksmith', races: ['Dwarf'], classes: ['Thief'], match: 'any' },
+  { name: 'Pest Controller', races: ['Dwarf'], classes: ['Thief'], match: 'any' },
+  { name: 'Champion', races: ['Dwarf'], classes: ['Fighter', 'Cleric'], match: 'all' },
+  { name: 'Temple Guard', races: ['Dwarf'], classes: ['Fighter', 'Cleric'], match: 'all' },
+  { name: 'Vindicator', races: ['Dwarf'], classes: ['Fighter', 'Cleric'], match: 'all' },
+  { name: 'Ghetto Fighter', races: ['Dwarf'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Trader', races: ['Dwarf'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Vermin Slayer', races: ['Dwarf'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Wayfinder', races: ['Dwarf'], classes: ['Fighter', 'Thief'], match: 'all' },
+
+  { name: 'Breachgnome', races: ['Gnome'], classes: ['Fighter'], match: 'any' },
+  { name: 'Goblinsticker', races: ['Gnome'], classes: ['Fighter'], match: 'any' },
+  { name: 'Mouseburglar', races: ['Gnome'], classes: ['Thief'], match: 'any' },
+  { name: 'Tumbler', races: ['Gnome'], classes: ['Thief'], match: 'any' },
+  { name: 'Imagemaker', races: ['Gnome'], classes: ['Mage'], match: 'any' },
+  { name: 'Vanisher', races: ['Gnome'], classes: ['Mage'], match: 'any' },
+  { name: 'Buffoon', races: ['Gnome'], classes: ['Mage', 'Thief'], match: 'all' },
+  { name: 'Stalker', races: ['Gnome'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Rocktender', races: ['Gnome'], classes: ['Cleric'], match: 'any' },
+  { name: 'Treetender', races: ['Gnome'], classes: ['Cleric'], match: 'any' },
+
+  { name: 'Archer', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Forestwalker', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Homesteader', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Mercenary', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Sheriff', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Squire', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Tunnelrat', races: ['Halfling'], classes: ['Fighter'], match: 'any' },
+  { name: 'Bandit', races: ['Halfling'], classes: ['Thief'], match: 'any' },
+  { name: 'Bilker', races: ['Halfling'], classes: ['Thief'], match: 'any' },
+  { name: 'Burglar', races: ['Halfling'], classes: ['Thief'], match: 'any' },
+  { name: 'Smuggler', races: ['Halfling'], classes: ['Thief'], match: 'any' },
+  { name: 'Urchin', races: ['Halfling'], classes: ['Thief'], match: 'any' },
+  { name: 'Healer', races: ['Halfling'], classes: ['Cleric'], match: 'any' },
+  { name: 'Leaftender', races: ['Halfling'], classes: ['Cleric'], match: 'any' },
+  { name: 'Oracle', races: ['Halfling'], classes: ['Cleric'], match: 'any' },
+  { name: 'Cartographer', races: ['Halfling'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Trader', races: ['Halfling'], classes: ['Fighter', 'Thief'], match: 'all' },
+  { name: 'Traveler', races: ['Halfling'], classes: ['Fighter', 'Thief'], match: 'all' },
+
+  { name: 'Tribal Defender', races: HUMANOID_RACES, classes: ['Fighter'], match: 'any' },
+  { name: 'Mine Rowdy', races: HUMANOID_RACES, classes: ['Fighter'], match: 'any' },
+  { name: 'Pit Fighter', races: HUMANOID_RACES, classes: ['Fighter'], match: 'any' },
+  { name: 'Saurial Paladin', races: HUMANOID_RACES, classes: ['Paladin'], match: 'any' },
+  { name: 'Sellsword', races: HUMANOID_RACES, classes: ['Fighter'], match: 'any' },
+  { name: 'Wilderness Protector', races: HUMANOID_RACES, classes: ['Fighter'], match: 'any' },
+  { name: 'Hedge Wizard', races: HUMANOID_RACES, classes: ['Mage'], match: 'any' },
+  { name: 'Humanoid Scholar', races: HUMANOID_RACES, classes: ['Mage'], match: 'any' },
+  { name: 'Outlaw Mage', races: HUMANOID_RACES, classes: ['Mage'], match: 'any' },
+  { name: 'Shaman', races: HUMANOID_RACES, classes: ['Cleric'], match: 'any' },
+  { name: 'Witch Doctor', races: HUMANOID_RACES, classes: ['Cleric'], match: 'any' },
+  { name: 'Oracle', races: HUMANOID_RACES, classes: ['Cleric'], match: 'any' },
+  { name: 'War Priest', races: HUMANOID_RACES, classes: ['Cleric'], match: 'any' },
+  { name: 'Wandering Mystic', races: HUMANOID_RACES, classes: ['Cleric'], match: 'any' },
+  { name: 'Scavenger', races: HUMANOID_RACES, classes: ['Thief'], match: 'any' },
+  { name: 'Tramp', races: HUMANOID_RACES, classes: ['Thief'], match: 'any' },
+  { name: 'Tunnel Rat', races: HUMANOID_RACES, classes: ['Thief'], match: 'any' },
+  { name: 'Shadow', races: HUMANOID_RACES, classes: ['Thief'], match: 'any' },
+  { name: 'Humanoid Bard', races: HUMANOID_RACES, classes: ['Bard'], match: 'any' },
+]
+
+export function kitClassNames(entries: Array<{ class?: string } | string>): string[] {
+  const have: string[] = []
+  for (const entry of entries) {
+    const raw = (typeof entry === 'string' ? entry : entry.class ?? '').trim()
+    if (!raw) continue
+    for (const part of raw.split(/\s*\/\s*/)) {
+      const name = rewriteLegacyClass(part)
+      if (name) have.push(name)
+    }
+  }
+  return Array.from(new Set(have))
+}
+
+function kitRaceMatches(race: string, races: readonly string[]): boolean {
+  return races.some(allowed => allowed.toLowerCase() === race.trim().toLowerCase())
+}
+
+function kitClassMatches(have: string[], needed: readonly string[], match: 'all' | 'any' = 'all'): boolean {
+  if (needed.length === 0) return have.length > 0
+  if (match === 'any') return needed.some(c => have.includes(c))
+  return needed.every(c => have.includes(c))
+}
+
+export function suggestedRacialKits(race: string, entries: Array<{ class?: string } | string>): string[] {
+  const have = kitClassNames(entries)
+  const names: string[] = []
+  for (const kit of RACIAL_KITS) {
+    if (!kitRaceMatches(race, kit.races)) continue
+    if (!kitClassMatches(have, kit.classes, kit.match ?? 'all')) continue
+    names.push(kit.name)
+  }
+  return Array.from(new Set(names))
+}
+
+export function suggestedSubclassOptions(race: string, entries: Array<{ class?: string } | string>): string[] {
+  const kits = suggestedRacialKits(race, entries)
+  const schools = kitClassNames(entries).includes('Mage') ? [...SPECIALIST_SCHOOLS] : []
+  return Array.from(new Set([...schools, ...kits]))
+}
+
 export const ALIGNMENTS = [
   'Lawful Good', 'Neutral Good', 'Chaotic Good',
   'Lawful Neutral', 'True Neutral', 'Chaotic Neutral',

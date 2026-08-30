@@ -6,8 +6,9 @@ import { Input, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Campaign } from '@/types'
 import { ClassPathFields } from '@/Components/ClassPathFields'
+import { KitField } from '@/Components/KitField'
 import {
-  ALIGNMENTS, RACES, SPECIALIST_SCHOOLS,
+  ALIGNMENTS, RACES,
   ClassPath, combinedHitDie, combinedThac0, formatSigned, movementRate, primaryAdjustment,
 } from '@/lib/adnd2e'
 
@@ -113,14 +114,12 @@ export default function Create({ campaign, campaigns }: Props) {
           />
           {errors.class && <p className="text-xs text-[var(--color-danger)]">{errors.class}</p>}
 
-          {entries.some(e => e.class === 'Mage') ? (
-            <Select label="Kit / specialist school" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
-              <option value="">Generalist mage</option>
-              {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
-            </Select>
-          ) : (
-            <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
-          )}
+          <KitField
+            race={data.race}
+            entries={data.class_levels}
+            value={data.subclass}
+            onChange={value => setData('subclass', value)}
+          />
 
           <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron, or kit notes…" />
 

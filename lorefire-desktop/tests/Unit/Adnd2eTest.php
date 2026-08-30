@@ -119,4 +119,51 @@ class Adnd2eTest extends TestCase
         $this->assertSame(10, Adnd2e::weaponSpeed('Two-handed sword'));
         $this->assertNull(Adnd2e::weaponSpeed('Mysterious orb'));
     }
+
+    public function test_elf_fighter_mage_sees_bladesinger_human_mage_does_not(): void
+    {
+        $elfFm = Adnd2e::suggestedRacialKits('Elf', [
+            ['class' => 'Fighter', 'level' => 1],
+            ['class' => 'Mage', 'level' => 1],
+        ]);
+        $this->assertContains('Bladesinger', $elfFm);
+        $this->assertContains('War Wizard', $elfFm);
+        $this->assertNotContains('Battlerager', $elfFm);
+
+        $humanMage = Adnd2e::suggestedRacialKits('Human', [
+            ['class' => 'Mage', 'level' => 1],
+        ]);
+        $this->assertNotContains('Bladesinger', $humanMage);
+        $this->assertSame([], $humanMage);
+
+        $humanOptions = Adnd2e::suggestedSubclassOptions('Human', [
+            ['class' => 'Mage', 'level' => 1],
+        ]);
+        $this->assertContains('Illusionist', $humanOptions);
+        $this->assertNotContains('Bladesinger', $humanOptions);
+
+        $elfMage = Adnd2e::suggestedRacialKits('Elf', [
+            ['class' => 'Mage', 'level' => 1],
+        ]);
+        $this->assertNotContains('Bladesinger', $elfMage);
+        $this->assertContains('Undead Slayer', $elfMage);
+    }
+
+    public function test_dwarf_fighter_sees_dwarf_kits_elf_does_not(): void
+    {
+        $dwarf = Adnd2e::suggestedRacialKits('Dwarf', [
+            ['class' => 'Fighter', 'level' => 1],
+        ]);
+        $this->assertContains('Battlerager', $dwarf);
+        $this->assertContains('Clansdwarf', $dwarf);
+        $this->assertNotContains('Bladesinger', $dwarf);
+        $this->assertNotContains('Champion', $dwarf);
+
+        $elf = Adnd2e::suggestedRacialKits('Elf', [
+            ['class' => 'Fighter', 'level' => 1],
+        ]);
+        $this->assertNotContains('Battlerager', $elf);
+        $this->assertNotContains('Bladesinger', $elf);
+        $this->assertContains('Archer', $elf);
+    }
 }

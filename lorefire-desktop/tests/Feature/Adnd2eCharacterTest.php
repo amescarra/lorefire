@@ -171,6 +171,36 @@ class Adnd2eCharacterTest extends TestCase
         $this->assertGreaterThanOrEqual(1, $character->memorization[1] ?? $character->memorization['1'] ?? 0);
     }
 
+    public function test_elf_fighter_mage_can_store_bladesinger_kit(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Aelindra',
+            'race' => 'Elf',
+            'class' => 'Fighter',
+            'subclass' => 'Bladesinger',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 3],
+                ['class' => 'Mage', 'level' => 3],
+            ],
+            'level' => 3,
+            'alignment' => 'Chaotic Good',
+            'strength' => 16,
+            'dexterity' => 16,
+            'constitution' => 12,
+            'intelligence' => 16,
+            'wisdom' => 10,
+            'charisma' => 12,
+        ])->assertRedirect();
+
+        $character = Character::query()->where('name', 'Aelindra')->firstOrFail();
+        $this->assertSame('Bladesinger', $character->subclass);
+        $this->assertSame('Elf', $character->race);
+        $this->assertSame('Fighter/Mage', $character->class);
+    }
+
     public function test_condition_manager_adds_and_clears_2e_states(): void
     {
         $character = Character::factory()->create();

@@ -6,11 +6,12 @@ import { Input, Textarea, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { ClassFeatures } from '@/Components/ClassFeatures'
 import { ClassPathFields } from '@/Components/ClassPathFields'
+import { KitField } from '@/Components/KitField'
 import { SpellsTab } from '@/Components/SpellsTab'
 import { Campaign, Character } from '@/types'
 import {
   ALIGNMENTS, NONWEAPON_PROFICIENCY_SUGGESTIONS, PRIEST_SPHERES, RACES,
-  SAVE_CATEGORIES, SPECIALIST_SCHOOLS, WEAPON_PROFICIENCY_SUGGESTIONS,
+  SAVE_CATEGORIES, WEAPON_PROFICIENCY_SUGGESTIONS,
   ClassPath, anyCaster, combinedHitDie, combinedSavingThrows, combinedThac0,
   formatSigned, normalizeClassLevels, primaryAdjustment,
 } from '@/lib/adnd2e'
@@ -327,14 +328,12 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             onEntries={next => setData('class_levels', next)}
           />
 
-          {data.class_levels.some(e => e.class === 'Mage') ? (
-            <Select label="Kit / specialist" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
-              <option value="">Generalist mage</option>
-              {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
-            </Select>
-          ) : (
-            <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
-          )}
+          <KitField
+            race={data.race}
+            entries={data.class_levels}
+            value={data.subclass}
+            onChange={value => setData('subclass', value)}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron…" />

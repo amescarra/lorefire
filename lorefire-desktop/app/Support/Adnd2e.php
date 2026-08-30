@@ -435,6 +435,28 @@ class Adnd2e
         };
     }
 
+    /**
+     * Racial-handbook kit names that match this race and class list.
+     *
+     * @param  array<int, mixed>  $entries
+     * @return list<string>
+     */
+    public static function suggestedRacialKits(string $race, array $entries): array
+    {
+        return Adnd2eRacialKits::suggestedNames($race, $entries);
+    }
+
+    /**
+     * Specialist schools (if a mage is present) plus eligible racial kits.
+     *
+     * @param  array<int, mixed>  $entries
+     * @return list<string>
+     */
+    public static function suggestedSubclassOptions(string $race, array $entries): array
+    {
+        return Adnd2eRacialKits::subclassSuggestions($race, $entries);
+    }
+
     public static function isSpecialist(string $class, ?string $subclass = null): bool
     {
         if (in_array($class, self::SPECIALIST_SCHOOLS, true)) {
