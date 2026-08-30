@@ -347,7 +347,30 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringContainsString('$torchVerifyCode = @\'', $ps1);
         $this->assertStringContainsString('Write-Host \'==> Pre-downloading WhisperX base model (optional, 3 min cap)...\'', $ps1);
 
-        $this->assertSetupPs1ParsesInPowerShell($path);
+        $this->assertPowerShellScriptIsAsciiAndParses($path, 'setup.ps1');
+    }
+
+    public function test_download_runtime_ps1_is_safe_for_windows_powershell_51(): void
+    {
+        $path = base_path('resources/python/download_runtime.ps1');
+        $ps1 = file_get_contents($path);
+        $this->assertIsString($ps1);
+
+        $this->assertPowerShellScriptIsAsciiAndParses($path, 'download_runtime.ps1');
+
+        $this->assertMatchesRegularExpression(
+            "/else \\{\\s*'x86_64-pc-windows-msvc'\\s*\\}/s",
+            $ps1,
+            'Default PBS platform must stay x86_64-pc-windows-msvc for torch 2.5.1 CPU wheels.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            "/else \\{\\s*'[^']*aarch64[^']*'\\s*\\}/",
+            $ps1
+        );
+        $this->assertDoesNotMatchRegularExpression('/Write-Host\s+"/m', $ps1);
+        $this->assertDoesNotMatchRegularExpression('/Write-Error\s+"/m', $ps1);
+        $this->assertStringNotContainsString('`python', $ps1);
+        $this->assertStringNotContainsString('install from the Microsoft Store', $ps1);
     }
 
     public function test_setup_ps1_rejects_microsoft_store_python_stubs(): void
@@ -380,8 +403,19 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringNotContainsString('install from the Microsoft Store', $ps1);
     }
 
-    private function assertSetupPs1ParsesInPowerShell(string $path): void
+    private function assertPowerShellScriptIsAsciiAndParses(string $path, string $label): void
     {
+        $ps1 = file_get_contents($path);
+        $this->assertIsString($ps1);
+
+        foreach (unpack('C*', $ps1) as $offset => $byte) {
+            $this->assertLessThan(
+                128,
+                $byte,
+                $label.' must be ASCII. Non-ASCII at byte '.$offset.' (0x'.dechex($byte).') breaks PowerShell 5.1 UTF-8-without-BOM parsing.'
+            );
+        }
+
         $shells = [];
         foreach (['pwsh', 'powershell'] as $bin) {
             $found = trim((string) shell_exec('command -v '.escapeshellarg($bin).' 2>/dev/null'));
@@ -399,6 +433,6 @@ class PythonSetupServiceTest extends TestCase
         $parse = '[void][System.Management.Automation.Language.Parser]::ParseFile(\''.$quoted.'\', [ref]$null, [ref]$errs); if ($errs) { $errs | ForEach-Object { $_.ToString() }; exit 1 }';
         $cmd = $shells[0].' -NoProfile -NonInteractive -Command '.escapeshellarg($parse);
         exec($cmd, $output, $code);
-        $this->assertSame(0, $code, "PowerShell failed to parse setup.ps1:\n".implode("\n", $output));
+        $this->assertSame(0, $code, 'PowerShell failed to parse '.$label.":\n".implode("\n", $output));
     }
 }
