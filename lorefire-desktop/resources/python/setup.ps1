@@ -90,6 +90,31 @@ function Write-NewFileBytes {
     }
 }
 
+# PS 5.1 Start-Process: HasExited can be true while ExitCode is still $null
+# unless WaitForExit + Refresh run first. Never treat a null ExitCode as
+# failure ($null -ne 0 is True). Pip rewriting itself on upgrade hits this.
+function Get-TimedCommandExitCode {
+    param(
+        $Process,
+        [string]$Output = ''
+    )
+    if ($Process) {
+        try { [void]$Process.WaitForExit() } catch { }
+        try { $Process.Refresh() } catch { }
+    }
+    $code = $null
+    try { $code = $Process.ExitCode } catch { }
+    if ($null -eq $code) {
+        if ($Output -match '(?i)Successfully installed|Successfully uninstalled|Requirement already satisfied') {
+            Write-Host '    ExitCode was empty after a successful pip/python step; treating as 0.'
+        } else {
+            Write-Host '    ExitCode was empty after the process exited; treating as 0 (not a failure).'
+        }
+        return 0
+    }
+    return [int]$code
+}
+
 # Run a child with merged stdout/stderr, live log streaming, a hard timeout,
 # and a non-zero exit that Windows PowerShell 5.1 would otherwise ignore.
 function Invoke-TimedCommand {
@@ -143,13 +168,20 @@ function Invoke-TimedCommand {
         Write-NewFileBytes -Path $errFile -Position $errPos | Out-Null
         Write-Host ''
 
-        if ($process.ExitCode -ne 0) {
+        # PS 5.1 Start-Process often leaves ExitCode $null after HasExited
+        # (pip rewriting itself during upgrade makes this more likely).
+        # $null -ne 0 is True, so a successful step looked like failure.
+        $combinedOut = ''
+        try { $combinedOut = ((Get-Content -Path $outFile -ErrorAction SilentlyContinue) + (Get-Content -Path $errFile -ErrorAction SilentlyContinue)) | Out-String } catch { }
+        $exitCode = Get-TimedCommandExitCode -Process $process -Output $combinedOut
+
+        if ($exitCode -ne 0) {
             if ($AllowFailure) {
-                Write-Host ('WARNING: ' + $Label + ' exited ' + $process.ExitCode + ' - continuing.')
+                Write-Host ('WARNING: ' + $Label + ' exited ' + $exitCode + ' - continuing.')
                 return $false
             }
-            Write-Error ('FAILED: ' + $Label + ' exited with code ' + $process.ExitCode)
-            exit $process.ExitCode
+            Write-Error ('FAILED: ' + $Label + ' exited with code ' + $exitCode)
+            exit $exitCode
         }
 
         return $true

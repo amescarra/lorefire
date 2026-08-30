@@ -373,6 +373,23 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringNotContainsString('install from the Microsoft Store', $ps1);
     }
 
+    public function test_setup_ps1_does_not_treat_null_exitcode_as_failure(): void
+    {
+        $ps1 = file_get_contents(base_path('resources/python/setup.ps1'));
+        $this->assertIsString($ps1);
+
+        $this->assertStringContainsString('function Get-TimedCommandExitCode', $ps1);
+        $this->assertStringContainsString('WaitForExit', $ps1);
+        $this->assertStringContainsString('Refresh()', $ps1);
+        $this->assertStringContainsString('$null -eq $code', $ps1);
+        $this->assertStringNotContainsString('$code -eq \'\'', $ps1);
+        $this->assertStringContainsString('treating as 0', $ps1);
+        $this->assertStringContainsString('Successfully installed', $ps1);
+        $this->assertStringContainsString('$exitCode = Get-TimedCommandExitCode', $ps1);
+        $this->assertStringContainsString('if ($exitCode -ne 0)', $ps1);
+        $this->assertStringNotContainsString('if ($process.ExitCode -ne 0)', $ps1);
+    }
+
     public function test_setup_ps1_rejects_microsoft_store_python_stubs(): void
     {
         $ps1 = file_get_contents(base_path('resources/python/setup.ps1'));
