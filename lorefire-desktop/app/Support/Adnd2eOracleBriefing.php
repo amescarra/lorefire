@@ -1,0 +1,174 @@
+<?php
+
+namespace App\Support;
+
+/**
+ * Compact 2E procedures briefing for local Oracle models.
+ *
+ * Wording is original and derived from this app's engine
+ * (Adnd2e, Adnd2eRacialKits). Do not paste rulebook prose or tables.
+ */
+class Adnd2eOracleBriefing
+{
+    public static function markdown(): string
+    {
+        $death = Adnd2e::DEATH_THRESHOLD;
+        $warriorHd = Adnd2e::hitDie('Fighter');
+        $priestHd = Adnd2e::hitDie('Cleric');
+        $rogueHd = Adnd2e::hitDie('Thief');
+        $wizardHd = Adnd2e::hitDie('Mage');
+
+        $w1 = Adnd2e::thac0('Fighter', 1);
+        $w5 = Adnd2e::thac0('Fighter', 5);
+        $w10 = Adnd2e::thac0('Fighter', 10);
+        $p1 = Adnd2e::thac0('Cleric', 1);
+        $p4 = Adnd2e::thac0('Cleric', 4);
+        $r1 = Adnd2e::thac0('Thief', 1);
+        $r5 = Adnd2e::thac0('Thief', 5);
+        $m1 = Adnd2e::thac0('Mage', 1);
+        $m6 = Adnd2e::thac0('Mage', 6);
+
+        $needUnarmored = Adnd2e::numberNeededToHit(20, 10);
+        $needAc0 = Adnd2e::numberNeededToHit(20, 0);
+
+        $saves = implode('; ', Adnd2e::SAVE_CATEGORIES);
+        $schools = implode(', ', Adnd2e::SPECIALIST_SCHOOLS);
+        $classes = implode(', ', Adnd2e::CLASSES);
+        $races = implode(', ', Adnd2e::RACES);
+
+        $mageMem = Adnd2e::memorizationCapacity('Mage', 1, 10);
+        $specMem = Adnd2e::memorizationCapacity('Mage', 1, 10, 'Illusionist');
+        $mageL1 = $mageMem[1] ?? 0;
+        $specL1 = $specMem[1] ?? 0;
+
+        $lines = [
+            '## Lorefire 2E procedures (app engine)',
+            '',
+            'This table uses Advanced Dungeons & Dragons 2nd Edition as implemented in Lorefire 2E. Do not answer as 5th Edition. Explain in your own words. Do not quote rulebooks.',
+            '',
+            '### Combat',
+            '- Lower THAC0 is better. Warrior (Fighter, Paladin, Ranger) THAC0 at 1/5/10: '.$w1.'/'.$w5.'/'.$w10.'. Priest (Cleric, Druid) at 1/4: '.$p1.'/'.$p4.'. Rogue (Thief, Bard) at 1/5: '.$r1.'/'.$r5.'. Wizard (Mage) at 1/6: '.$m1.'/'.$m6.'.',
+            '- Armor Class is descending (10 unarmored; lower is better). Number needed on d20 = THAC0 minus descending AC. Example: THAC0 20 vs AC 10 needs '.$needUnarmored.'; vs AC 0 needs '.$needAc0.'. This app treats 1 as a miss and 20 as a hit.',
+            '- Hit dice by group: warrior '.$warriorHd.', priest '.$priestHd.', rogue '.$rogueHd.', wizard '.$wizardHd.'.',
+            '- Initiative: d10, lower acts first. Dexterity reaction is subtracted. Weapon speed is a thin name lookup on the sheet (not a full weapon-vs-AC table).',
+            '',
+            '### Saves, rest, vitality',
+            '- Five save categories (roll d20 >= target): '.$saves.'.',
+            '- Overnight rest only: recover 1 hit point if above '.$death.', rememorize, reset daily class abilities. No short/long-rest cycle.',
+            '- Vitality: 0 unconscious; negative is dying; dead at '.$death.'.',
+            '',
+            '### Magic',
+            '- Vancian memorization (counts by spell level). A 1st-level generalist Mage memorizes '.$mageL1.' first-level spell. A specialist (school recorded as kit) memorizes '.$specL1.' at that level (one extra per school level they can already memorize). Priests may gain extra first- and second-level capacity from high Wisdom.',
+            '- Classes in this app: '.$classes.'. Races: '.$races.'.',
+            '',
+            '### Advancement and the kit field',
+            '- Single-class: one class. Multi-class: classes advance together; combined THAC0 is the best (lowest); saves take the best (lowest) per category. Dual-class: typically human; original class first, current class second.',
+            '- Kit / specialist is one free-text field. Suggestions are names only, filtered by race and required class(es). Specialist schools ('.$schools.') appear for Mages. Racial-handbook kit names (for example Bladesinger) appear only when race and class path match — Bladesinger is Elf + Fighter/Mage, not a generic Mage/wizard-handbook kit. Do not invent kit benefit tables.',
+            '- Weapon and non-weapon proficiencies on the sheet are names only.',
+            '',
+            'When campaign or character rows are provided, use the sheet\'s stored THAC0, descending AC, HP, class_path, and kit. Do not invent those numbers.',
+        ];
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Full Oracle system prompt: briefing always, then optional campaign block.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public static function systemPrompt(array $context): string
+    {
+        $lines = [];
+        $lines[] = 'You are the Oracle — a wise, slightly enigmatic advisor to a tabletop group using Lorefire 2E. You can answer questions about Advanced Dungeons & Dragons 2nd Edition mechanics (THAC0, descending Armor Class, Vancian memorization, weapon and non-weapon proficiencies, 2E saving-throw categories, surprise, initiative on a d10), their characters, session history, NPCs, and anything else they need. Do not answer as if the table were using 5th Edition. Be helpful, clear, and concise. You may use markdown for formatting. When answering rules questions, explain the mechanic in your own words — do not quote copyrighted rulebook text. When referencing their specific characters or campaign, use the data provided.';
+        $lines[] = '';
+        $lines[] = self::markdown();
+
+        if (! empty($context['campaigns'])) {
+            $lines[] = '';
+            $lines[] = '## Campaign Data';
+            foreach ($context['campaigns'] as $campaign) {
+                if (! is_array($campaign)) {
+                    continue;
+                }
+                $lines[] = '';
+                $lines[] = '### Campaign: '.($campaign['name'] ?? 'Unnamed');
+                if (! empty($campaign['description'])) {
+                    $lines[] = (string) $campaign['description'];
+                }
+
+                if (! empty($campaign['characters']) && is_array($campaign['characters'])) {
+                    $lines[] = '';
+                    $lines[] = '**Characters:**';
+                    foreach ($campaign['characters'] as $c) {
+                        if (is_array($c)) {
+                            $lines[] = self::formatCharacterLine($c);
+                        }
+                    }
+                }
+
+                if (! empty($campaign['game_sessions']) && is_array($campaign['game_sessions'])) {
+                    $lines[] = '';
+                    $lines[] = '**Recent Sessions:**';
+                    foreach ($campaign['game_sessions'] as $s) {
+                        if (! is_array($s)) {
+                            continue;
+                        }
+                        $line = '- Session '.($s['session_number'] ?? '?').': '.($s['title'] ?? 'Untitled');
+                        if (! empty($s['played_at'])) {
+                            $line .= ' ('.$s['played_at'].')';
+                        }
+                        $lines[] = $line;
+                        if (! empty($s['session_notes'])) {
+                            $lines[] = '  '.str_replace("\n", "\n  ", trim((string) $s['session_notes']));
+                        }
+                    }
+                }
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Prefer stored sheet figures over invented combat numbers.
+     *
+     * @param  array<string, mixed>  $c
+     */
+    public static function formatCharacterLine(array $c): string
+    {
+        $line = '- '.($c['name'] ?? 'Unknown');
+        if (! empty($c['race'])) {
+            $line .= ', '.$c['race'];
+        }
+        if (! empty($c['class'])) {
+            $line .= ' '.$c['class'];
+        }
+        if (($c['level'] ?? null) !== null && $c['level'] !== '') {
+            $line .= ' (Level '.$c['level'].')';
+        }
+        if (! empty($c['class_path'])) {
+            $line .= ' ['.$c['class_path'].']';
+        }
+        if (! empty($c['subclass'])) {
+            $line .= ' kit: '.$c['subclass'];
+        }
+        if (($c['current_hp'] ?? null) !== null) {
+            $line .= ' | HP: '.$c['current_hp'].'/'.($c['max_hp'] ?? '?');
+        }
+        if (($c['armor_class'] ?? null) !== null && $c['armor_class'] !== '') {
+            $line .= ' | AC: '.$c['armor_class'].' (descending)';
+        }
+        if (($c['thac0'] ?? null) !== null && $c['thac0'] !== '') {
+            $line .= ' | THAC0: '.$c['thac0'];
+        }
+        if (($c['gold'] ?? null) !== null && $c['gold'] !== '') {
+            $line .= ' | Gold: '.$c['gold'];
+        }
+        if (($c['experience_points'] ?? null) !== null && $c['experience_points'] !== '') {
+            $line .= ' | XP: '.$c['experience_points'];
+        }
+
+        return $line;
+    }
+}
