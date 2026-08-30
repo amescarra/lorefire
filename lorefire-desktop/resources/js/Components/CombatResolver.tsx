@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { formatSigned, resolveAttack, resolveInitiative } from '@/lib/adnd2e'
+import { WEAPON_PROFICIENCY_SUGGESTIONS, formatSigned, resolveAttack, resolveInitiative, weaponSpeed } from '@/lib/adnd2e'
 
 /**
  * Live 2E attack / initiative helper: THAC0 vs descending AC, d10 initiative.
@@ -40,8 +40,21 @@ export function CombatResolver({ defaultThac0 = 20, defaultDex = 10 }: { default
         <div className="grid grid-cols-3 gap-3">
           <Num label="d10" value={initDie} min={1} max={10} onChange={setInitDie} />
           <Num label="DEX" value={dex} min={1} max={25} onChange={setDex} />
-          <Num label="Weapon / spell" value={initExtra} onChange={setInitExtra} />
+          <Num label="Weapon speed" value={initExtra} onChange={setInitExtra} />
         </div>
+        <select
+          className="mt-2 w-full bg-[var(--color-deep)] border border-[var(--color-border)] rounded px-2 py-1 text-xs text-[var(--color-text-base)]"
+          defaultValue=""
+          onChange={e => {
+            const speed = weaponSpeed(e.target.value)
+            if (speed !== null) setInitExtra(speed)
+          }}
+        >
+          <option value="">Apply speed factor…</option>
+          {WEAPON_PROFICIENCY_SUGGESTIONS.map(w => (
+            <option key={w} value={w}>{w}{weaponSpeed(w) != null ? ` (${weaponSpeed(w)})` : ''}</option>
+          ))}
+        </select>
         <p className="mt-3 text-sm">
           Total <span className="font-mono text-[var(--color-rune-bright)]">{init.total}</span>
           <span className="text-[10px] text-[var(--color-text-dim)]"> ({formatSigned(init.modifier)} from reaction / modifiers)</span>

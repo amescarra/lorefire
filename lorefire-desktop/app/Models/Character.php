@@ -20,6 +20,8 @@ class Character extends Model
         'subrace',
         'class',
         'subclass',
+        'class_path',
+        'class_levels',
         'level',
         'background',
         'alignment',
@@ -47,12 +49,12 @@ class Character extends Model
         'gold',
         'platinum',
         'spellcasting_ability',
-        'spell_slots',
-        'spell_slots_used',
-        'personality_traits',
-        'ideals',
-        'bonds',
-        'flaws',
+        'memorization',
+        'memorization_used',
+        'mannerisms',
+        'motivations',
+        'ties',
+        'weaknesses',
         'backstory',
         'appearance_description',
         'portrait_path',
@@ -67,8 +69,9 @@ class Character extends Model
         'weapon_proficiencies' => 'array',
         'nonweapon_proficiencies' => 'array',
         'priest_spheres' => 'array',
-        'spell_slots' => 'array',
-        'spell_slots_used' => 'array',
+        'class_levels' => 'array',
+        'memorization' => 'array',
+        'memorization_used' => 'array',
         'imported_data' => 'array',
         'class_features' => 'array',
     ];
@@ -109,23 +112,34 @@ class Character extends Model
     }
 
     /**
-     * Primary combat-facing adjustment for an ability (2E tables).
+     * @return array<int, array{class: string, level: int}>
      */
+    public function classEntries(): array
+    {
+        return Adnd2e::normalizeClassLevels(
+            $this->class_levels,
+            (string) $this->class,
+            (int) $this->level,
+            (string) ($this->class_path ?? 'single'),
+        );
+    }
+
     public function getModifier(string $ability): int
     {
         $exceptional = $ability === 'strength' ? $this->exceptional_strength : null;
+        $primary = $this->classEntries()[0]['class'] ?? (string) $this->class;
 
-        return Adnd2e::primaryAdjustment($ability, (int) $this->{$ability}, $exceptional, (string) $this->class);
+        return Adnd2e::primaryAdjustment($ability, (int) $this->{$ability}, $exceptional, $primary);
     }
 
     public function resolvedThac0(): int
     {
-        return $this->thac0 ?? Adnd2e::thac0((string) $this->class, (int) $this->level);
+        return $this->thac0 ?? Adnd2e::combinedThac0($this->classEntries());
     }
 
     public function resolvedSavingThrows(): array
     {
-        return $this->saving_throws ?: Adnd2e::savingThrows((string) $this->class, (int) $this->level);
+        return $this->saving_throws ?: Adnd2e::combinedSavingThrows($this->classEntries());
     }
 
     public function vitalityState(): string

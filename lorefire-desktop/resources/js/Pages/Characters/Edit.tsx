@@ -5,12 +5,14 @@ import { Button } from '@/Components/Button'
 import { Input, Textarea, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { ClassFeatures } from '@/Components/ClassFeatures'
+import { ClassPathFields } from '@/Components/ClassPathFields'
 import { SpellsTab } from '@/Components/SpellsTab'
 import { Campaign, Character } from '@/types'
 import {
-  ALIGNMENTS, CLASSES, NONWEAPON_PROFICIENCY_SUGGESTIONS, PRIEST_SPHERES, RACES,
+  ALIGNMENTS, NONWEAPON_PROFICIENCY_SUGGESTIONS, PRIEST_SPHERES, RACES,
   SAVE_CATEGORIES, SPECIALIST_SCHOOLS, WEAPON_PROFICIENCY_SUGGESTIONS,
-  formatSigned, hitDie, isCaster, primaryAdjustment, savingThrows, thac0,
+  ClassPath, anyCaster, combinedHitDie, combinedSavingThrows, combinedThac0,
+  formatSigned, normalizeClassLevels, primaryAdjustment,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -31,6 +33,8 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     subrace: character.subrace ?? '',
     class: character.class,
     subclass: character.subclass ?? '',
+    class_path: (character.class_path ?? 'single') as ClassPath,
+    class_levels: normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single'),
     level: character.level,
     background: character.background ?? '',
     alignment: character.alignment ?? '',
@@ -44,11 +48,11 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     max_hp: character.max_hp,
     current_hp: character.current_hp,
     armor_class: character.armor_class,
-    thac0: character.thac0 ?? thac0(character.class, character.level),
+    thac0: character.thac0 ?? combinedThac0(normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single')),
     speed: character.speed,
-    hit_die: character.hit_die ?? hitDie(character.class),
+    hit_die: character.hit_die ?? combinedHitDie(normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single')),
     exceptional_strength: character.exceptional_strength ?? '',
-    saving_throws: (character.saving_throws ?? savingThrows(character.class, character.level)) as Record<string, number>,
+    saving_throws: (character.saving_throws ?? combinedSavingThrows(normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single'))) as Record<string, number>,
     weapon_proficiencies: character.weapon_proficiencies ?? [],
     nonweapon_proficiencies: character.nonweapon_proficiencies ?? [],
     priest_spheres: (character.priest_spheres ?? { major: [], minor: [] }) as { major: string[]; minor: string[] },
@@ -58,11 +62,11 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     gold: character.gold,
     platinum: character.platinum,
     spellcasting_ability: character.spellcasting_ability ?? '',
-    spell_slots: (character.spell_slots ?? {}) as Record<string, number>,
-    personality_traits: character.personality_traits ?? '',
-    ideals: character.ideals ?? '',
-    bonds: character.bonds ?? '',
-    flaws: character.flaws ?? '',
+    memorization: (character.memorization ?? {}) as Record<string, number>,
+    mannerisms: character.mannerisms ?? '',
+    motivations: character.motivations ?? '',
+    ties: character.ties ?? '',
+    weaknesses: character.weaknesses ?? '',
     backstory: character.backstory ?? '',
     appearance_description: character.appearance_description ?? '',
     campaign_id: character.campaign_id?.toString() ?? '',
@@ -78,13 +82,17 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
   }))
 
   useEffect(() => {
-    setData('thac0', thac0(data.class, data.level))
-    setData('hit_die', hitDie(data.class))
-    setData('saving_throws', savingThrows(data.class, data.level))
-  }, [data.class, data.level])
+    const entries = data.class_levels.filter(e => e.class)
+    if (entries.length === 0) return
+    setData('thac0', combinedThac0(entries))
+    setData('hit_die', combinedHitDie(entries))
+    setData('saving_throws', combinedSavingThrows(entries))
+    setData('class', entries[0].class)
+    setData('level', entries[0].level)
+  }, [data.class_levels, data.class_path])
 
   const handleSlotChange = (slotLevel: number, value: number) => {
-    setData('spell_slots', { ...data.spell_slots, [slotLevel]: value })
+    setData('memorization', { ...data.memorization, [slotLevel]: value })
   }
 
   const toggleList = (list: 'weapon_proficiencies' | 'nonweapon_proficiencies', value: string) => {
@@ -312,21 +320,21 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             </Select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Class" value={data.class} onChange={e => setData('class', e.target.value)} error={errors.class}>
-              <option value="">Select…</option>
-              {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          <ClassPathFields
+            path={data.class_path}
+            entries={data.class_levels}
+            onPath={path => setData('class_path', path)}
+            onEntries={next => setData('class_levels', next)}
+          />
+
+          {data.class_levels.some(e => e.class === 'Mage') ? (
+            <Select label="Kit / specialist" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
+              <option value="">Generalist mage</option>
+              {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
             </Select>
-            {data.class === 'Mage' ? (
-              <Select label="Kit / specialist" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
-                <option value="">Generalist mage</option>
-                {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            ) : (
-              <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
-            )}
-            <Input label="Level" type="number" min={1} max={20} value={data.level} onChange={e => setData('level', parseInt(e.target.value))} error={errors.level} />
-          </div>
+          ) : (
+            <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron…" />
@@ -354,7 +362,7 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             ))}
           </div>
 
-          {(data.class === 'Fighter' || data.class === 'Paladin' || data.class === 'Ranger') && data.strength === 18 && (
+          {data.class_levels.some(e => e.class === 'Fighter' || e.class === 'Paladin' || e.class === 'Ranger') && data.strength === 18 && (
             <Input
               label="Exceptional Strength (18/xx)"
               value={data.exceptional_strength}
@@ -426,7 +434,7 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             </div>
           </div>
 
-          {(data.class === 'Cleric' || data.class === 'Druid' || data.class === 'Paladin') && (
+          {data.class_levels.some(e => e.class === 'Cleric' || e.class === 'Druid' || e.class === 'Paladin') && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Priest Spheres</p>
               <p className="text-[10px] text-[var(--color-text-dim)] mb-1">Major</p>
@@ -490,7 +498,7 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             <option value="wisdom">Wisdom</option>
           </Select>
 
-          {isCaster(data.class, data.level) && (
+          {anyCaster(data.class_levels) && (
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Memorization capacity (spells per level)</p>
               <div className="grid grid-cols-9 gap-2">
@@ -503,7 +511,7 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
                       type="number"
                       min={0}
                       max={12}
-                      value={(data.spell_slots as Record<string, number>)[lvl] ?? 0}
+                      value={(data.memorization as Record<string, number>)[lvl] ?? 0}
                       onChange={e => handleSlotChange(lvl, parseInt(e.target.value) || 0)}
                       className="w-full text-center bg-[var(--color-deep)] border border-[var(--color-border)] rounded py-1.5 text-[var(--color-text-white)] font-heading text-sm focus:outline-none focus:border-[var(--color-rune)]"
                     />
@@ -535,10 +543,10 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
           <RuneDivider label="Character Notes" />
 
           <div className="grid grid-cols-2 gap-4">
-            <Textarea label="Personality Traits" value={data.personality_traits} onChange={e => setData('personality_traits', e.target.value)} rows={3} />
-            <Textarea label="Ideals" value={data.ideals} onChange={e => setData('ideals', e.target.value)} rows={3} />
-            <Textarea label="Bonds" value={data.bonds} onChange={e => setData('bonds', e.target.value)} rows={3} />
-            <Textarea label="Flaws" value={data.flaws} onChange={e => setData('flaws', e.target.value)} rows={3} />
+            <Textarea label="Mannerisms" value={data.mannerisms} onChange={e => setData('mannerisms', e.target.value)} rows={3} placeholder="How they speak, move, and present themselves…" />
+            <Textarea label="Motivations" value={data.motivations} onChange={e => setData('motivations', e.target.value)} rows={3} placeholder="What they pursue or refuse…" />
+            <Textarea label="Ties" value={data.ties} onChange={e => setData('ties', e.target.value)} rows={3} placeholder="Patrons, rivals, homelands, oaths…" />
+            <Textarea label="Weaknesses" value={data.weaknesses} onChange={e => setData('weaknesses', e.target.value)} rows={3} placeholder="Fears, vices, or complications…" />
           </div>
 
           <Textarea label="Backstory" value={data.backstory} onChange={e => setData('backstory', e.target.value)} rows={5} placeholder="The origin tale of your character…" />

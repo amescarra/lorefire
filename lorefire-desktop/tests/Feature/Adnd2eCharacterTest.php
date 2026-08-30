@@ -11,6 +11,28 @@ class Adnd2eCharacterTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_warlock_class_is_rewritten_to_mage(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Hexer',
+            'race' => 'Human',
+            'class' => 'Warlock',
+            'level' => 1,
+            'strength' => 10,
+            'dexterity' => 10,
+            'constitution' => 10,
+            'intelligence' => 14,
+            'wisdom' => 10,
+            'charisma' => 16,
+        ])->assertRedirect();
+
+        $character = Character::query()->where('name', 'Hexer')->firstOrFail();
+        $this->assertSame('Mage', $character->class);
+        $this->assertSame('d4', $character->hit_die);
+    }
+
     public function test_creating_a_character_applies_2e_defaults(): void
     {
         $campaign = Campaign::factory()->create();
@@ -38,7 +60,7 @@ class Adnd2eCharacterTest extends TestCase
         $this->assertSame('d4', $character->hit_die);
         $this->assertSame(12, $character->speed);
         $this->assertArrayHasKey('paralyzation', $character->saving_throws);
-        $this->assertGreaterThanOrEqual(1, $character->spell_slots[1] ?? $character->spell_slots['1'] ?? 0);
+        $this->assertGreaterThanOrEqual(1, $character->memorization[1] ?? $character->memorization['1'] ?? 0);
         $this->assertArrayNotHasKey('proficiency_bonus', $character->getAttributes());
         $this->assertArrayNotHasKey('dnd_beyond_url', $character->getAttributes());
     }
@@ -63,14 +85,14 @@ class Adnd2eCharacterTest extends TestCase
         $character = Character::factory()->create([
             'max_hp' => 10,
             'current_hp' => 4,
-            'spell_slots_used' => [1 => ['total' => 2, 'used' => 2]],
+            'memorization_used' => [1 => 2],
         ]);
 
         $this->post(route('characters.rest.overnight', $character))->assertRedirect();
 
         $character->refresh();
         $this->assertSame(5, $character->current_hp);
-        $this->assertNull($character->spell_slots_used);
+        $this->assertNull($character->memorization_used);
     }
 
     public function test_hit_points_can_drop_to_negative_ten(): void
@@ -107,5 +129,68 @@ class Adnd2eCharacterTest extends TestCase
 
         $this->post("/characters/{$character->id}/rest/short")->assertNotFound();
         $this->post("/characters/{$character->id}/rest/long")->assertNotFound();
+    }
+
+    public function test_attunement_route_is_gone(): void
+    {
+        $character = Character::factory()->create();
+
+        $status = $this->patch("/characters/{$character->id}/inventory/1/attune")->status();
+        $this->assertContains($status, [404, 405]);
+    }
+
+    public function test_creating_a_multi_class_character_combines_combat_stats(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Elara',
+            'race' => 'Elf',
+            'class' => 'Fighter',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 5],
+                ['class' => 'Mage', 'level' => 5],
+            ],
+            'level' => 5,
+            'alignment' => 'Chaotic Good',
+            'strength' => 16,
+            'dexterity' => 14,
+            'constitution' => 12,
+            'intelligence' => 16,
+            'wisdom' => 10,
+            'charisma' => 10,
+        ])->assertRedirect();
+
+        $character = Character::query()->where('name', 'Elara')->firstOrFail();
+        $this->assertSame('multi', $character->class_path);
+        $this->assertSame('Fighter/Mage', $character->class);
+        $this->assertSame(16, $character->thac0);
+        $this->assertSame('d10/d4', $character->hit_die);
+        $this->assertArrayHasKey('rod', $character->saving_throws);
+        $this->assertGreaterThanOrEqual(1, $character->memorization[1] ?? $character->memorization['1'] ?? 0);
+    }
+
+    public function test_condition_manager_adds_and_clears_2e_states(): void
+    {
+        $character = Character::factory()->create();
+
+        $this->post(route('characters.conditions.store', $character), [
+            'condition' => 'Held',
+            'notes' => 'Hold Person',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('character_conditions', [
+            'character_id' => $character->id,
+            'condition' => 'Held',
+        ]);
+
+        $this->post(route('characters.conditions.store', $character), [
+            'condition' => 'Exhausted',
+        ])->assertSessionHasErrors('condition');
+
+        $condition = $character->conditions()->firstOrFail();
+        $this->delete(route('characters.conditions.destroy', [$character, $condition]))->assertRedirect();
+        $this->assertDatabaseMissing('character_conditions', ['id' => $condition->id]);
     }
 }

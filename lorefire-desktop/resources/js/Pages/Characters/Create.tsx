@@ -5,9 +5,10 @@ import { Button } from '@/Components/Button'
 import { Input, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Campaign } from '@/types'
+import { ClassPathFields } from '@/Components/ClassPathFields'
 import {
-  ALIGNMENTS, CLASSES, RACES, SPECIALIST_SCHOOLS,
-  formatSigned, hitDie, movementRate, primaryAdjustment, thac0,
+  ALIGNMENTS, RACES, SPECIALIST_SCHOOLS,
+  ClassPath, combinedHitDie, combinedThac0, formatSigned, movementRate, primaryAdjustment,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -20,6 +21,8 @@ export default function Create({ campaign, campaigns }: Props) {
 
   const { data, setData, post, processing, errors } = useForm({
     name: '', player_name: '', race: '', subrace: '', class: '', subclass: '',
+    class_path: 'single' as ClassPath,
+    class_levels: [{ class: '', level: 1 }],
     level: 1, background: '', alignment: '',
     strength: 10, exceptional_strength: '', dexterity: 10, constitution: 10,
     intelligence: 10, wisdom: 10, charisma: 10,
@@ -35,6 +38,8 @@ export default function Create({ campaign, campaigns }: Props) {
       post(`/campaigns/${campaign!.id}/characters`)
     }
   }
+
+  const entries = data.class_levels.filter(e => e.class)
 
   const adj = (ability: string, score: number) =>
     formatSigned(primaryAdjustment(ability, score, data.exceptional_strength || null, data.class || 'Fighter'))
@@ -91,21 +96,31 @@ export default function Create({ campaign, campaigns }: Props) {
             </Select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Class" value={data.class} onChange={e => setData('class', e.target.value)} error={errors.class}>
-              <option value="">Select…</option>
-              {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          <ClassPathFields
+            path={data.class_path}
+            entries={data.class_levels}
+            onPath={path => {
+              setData('class_path', path)
+              const first = data.class_levels[0] ?? { class: '', level: 1 }
+              setData('class', first.class)
+              setData('level', first.level)
+            }}
+            onEntries={next => {
+              setData('class_levels', next)
+              setData('class', next[0]?.class ?? '')
+              setData('level', next[0]?.level ?? 1)
+            }}
+          />
+          {errors.class && <p className="text-xs text-[var(--color-danger)]">{errors.class}</p>}
+
+          {entries.some(e => e.class === 'Mage') ? (
+            <Select label="Kit / specialist school" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
+              <option value="">Generalist mage</option>
+              {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
             </Select>
-            {data.class === 'Mage' ? (
-              <Select label="Kit / specialist school" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
-                <option value="">Generalist mage</option>
-                {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            ) : (
-              <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
-            )}
-            <Input label="Level" type="number" min={1} max={20} value={data.level} onChange={e => setData('level', parseInt(e.target.value))} error={errors.level} />
-          </div>
+          ) : (
+            <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
+          )}
 
           <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron, or kit notes…" />
 
@@ -129,7 +144,7 @@ export default function Create({ campaign, campaigns }: Props) {
             ))}
           </div>
 
-          {(data.class === 'Fighter' || data.class === 'Paladin' || data.class === 'Ranger') && data.strength === 18 && (
+          {entries.some(e => e.class === 'Fighter' || e.class === 'Paladin' || e.class === 'Ranger') && data.strength === 18 && (
             <Input
               label="Exceptional Strength (18/xx)"
               value={data.exceptional_strength}
@@ -147,7 +162,7 @@ export default function Create({ campaign, campaigns }: Props) {
             <div className="flex flex-col justify-end pb-0.5">
               <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Computed</p>
               <p className="text-sm text-[var(--color-rune-bright)] font-mono">
-                THAC0 {data.class ? thac0(data.class, data.level) : '—'} · {data.class ? hitDie(data.class) : 'HD'}
+                THAC0 {entries.length ? combinedThac0(entries) : '—'} · {entries.length ? combinedHitDie(entries) : 'HD'}
               </p>
             </div>
           </div>

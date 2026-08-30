@@ -8,8 +8,9 @@ import { HpBar } from '@/Components/HpBar'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Input } from '@/Components/Input'
 import { Campaign, Character, InventoryItem, InventorySnapshot } from '@/types'
+import { ConditionManager } from '@/Components/ConditionManager'
 import {
-  SAVE_CATEGORIES, formatSigned, isCaster, primaryAdjustment, vitalityState,
+  SAVE_CATEGORIES, anyCaster, formatSigned, normalizeClassLevels, primaryAdjustment, vitalityState,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -69,9 +70,9 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     ? `/characters/${character.id}/rest`
     : `/campaigns/${campaign!.id}/characters/${character.id}/rest`
 
-  const spellSlotsUrl = standalone
-    ? `/characters/${character.id}/spell-slots`
-    : `/campaigns/${campaign!.id}/characters/${character.id}/spell-slots`
+  const memorizationUrl = standalone
+    ? `/characters/${character.id}/memorization`
+    : `/campaigns/${campaign!.id}/characters/${character.id}/memorization`
 
   const classFeaturesUrl = `/characters/${character.id}/class-features`
 
@@ -81,7 +82,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
   }
 
   const toggleSlot = (level: number, action: 'use' | 'recover') => {
-    router.patch(spellSlotsUrl, { level, action }, { preserveScroll: true })
+    router.patch(memorizationUrl, { level, action }, { preserveScroll: true })
   }
 
   const adj = (ability: string, score: number) =>
@@ -98,8 +99,9 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     { label: 'CHA', key: 'charisma' as const },
   ]
 
-  const hasMemorization = isCaster(character.class, character.level)
-    || (character.spell_slots && Object.keys(character.spell_slots).length > 0)
+  const classEntries = normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single')
+  const hasMemorization = anyCaster(classEntries)
+    || (character.memorization && Object.keys(character.memorization).length > 0)
 
   return (
     <AppLayout breadcrumbs={
@@ -156,14 +158,17 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-heading text-2xl text-[var(--color-text-white)] tracking-widest uppercase">{character.name}</h1>
               <Badge variant="rune">Level {character.level}</Badge>
-              {character.conditions && character.conditions.length > 0 && (
-                <Badge variant="warning">Conditions</Badge>
+              {character.class_path && character.class_path !== 'single' && (
+                <Badge variant="muted">{character.class_path === 'dual' ? 'Dual-class' : 'Multi-class'}</Badge>
               )}
             </div>
             <p className="text-sm text-[var(--color-text-dim)] mt-0.5">
               {character.race}{character.subrace ? ` (${character.subrace})` : ''} · {character.class}{character.subclass ? ` — ${character.subclass}` : ''}
               {character.background ? ` · ${character.background}` : ''}
             </p>
+            <div className="mt-2">
+              <ConditionManager characterId={character.id} conditions={character.conditions ?? []} />
+            </div>
             {character.player_name && (
               <p className="text-xs text-[var(--color-text-dim)] mt-0.5 opacity-60">Played by {character.player_name}</p>
             )}
@@ -353,19 +358,19 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
         {tab === 'spells' && (
           <div className="flex flex-col gap-3">
             {/* ── Memorization capacity tracker ───────────────────── */}
-            {hasMemorization && character.spell_slots && Object.keys(character.spell_slots).length > 0 && (
+            {hasMemorization && character.memorization && Object.keys(character.memorization).length > 0 && (
               <Card>
                 <CardHeader
                   title="Memorized (capacity)"
                   subtitle="Click a pip to cast · right-click to restore"
                 />
                 <div className="flex flex-col gap-3">
-                  {Object.entries(character.spell_slots)
+                  {Object.entries(character.memorization)
                     .filter(([, max]) => (max as number) > 0)
                     .sort(([a], [b]) => Number(a) - Number(b))
                     .map(([level, maxRaw]) => {
                       const max = maxRaw as number
-                      const used = (character.spell_slots_used?.[level] ?? 0) as number
+                      const used = (character.memorization_used?.[level] ?? 0) as number
                       const remaining = max - used
                       return (
                         <div key={level} className="flex items-center gap-3">
@@ -426,8 +431,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
                       {spell.is_prepared && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-rune)] shrink-0" />}
                       <span className="text-sm text-[var(--color-text-bright)]">{spell.name}</span>
                       {spell.school && <span className="text-[10px] text-[var(--color-text-dim)] ml-auto">{spell.school}</span>}
-                      {spell.concentration && <Badge variant="arcane">C</Badge>}
-                      {spell.ritual && <Badge variant="muted">R</Badge>}
+                      {spell.is_cast && <Badge variant="muted">Cast</Badge>}
                     </div>
                   ))}
                 </div>
@@ -468,10 +472,10 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
         {tab === 'notes' && (
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'Personality Traits', value: character.personality_traits },
-              { label: 'Ideals', value: character.ideals },
-              { label: 'Bonds', value: character.bonds },
-              { label: 'Flaws', value: character.flaws },
+              { label: 'Mannerisms', value: character.mannerisms },
+              { label: 'Motivations', value: character.motivations },
+              { label: 'Ties', value: character.ties },
+              { label: 'Weaknesses', value: character.weaknesses },
             ].map(({ label, value }) => (
               <Card key={label}>
                 <CardHeader title={label} />
@@ -660,9 +664,7 @@ type ItemFormData = {
   weight: string
   value_cp: string
   equipped: boolean
-  attuned: boolean
   is_magical: boolean
-  requires_attunement: boolean
   description: string
   properties: string[]
 }
@@ -674,9 +676,7 @@ const emptyItemForm = (): ItemFormData => ({
   weight: '0',
   value_cp: '0',
   equipped: false,
-  attuned: false,
   is_magical: false,
-  requires_attunement: false,
   description: '',
   properties: [],
 })
@@ -689,9 +689,7 @@ function itemToFormData(item: InventoryItem): ItemFormData {
     weight: String(item.weight),
     value_cp: String(item.value_cp),
     equipped: item.equipped,
-    attuned: item.attuned,
     is_magical: item.is_magical,
-    requires_attunement: item.requires_attunement,
     description: item.description ?? '',
     properties: item.properties ?? [],
   }
@@ -712,14 +710,8 @@ function InventoryTab({ character }: { character: Character }) {
   // Totals
   const totalWeight = items.reduce((s, i) => s + Number(i.weight) * i.quantity, 0)
   const totalValue = items.reduce((s, i) => s + i.value_cp * i.quantity, 0)
-  const attuned = items.filter(i => i.attuned).length
-
   const toggleEquip = (item: InventoryItem) => {
     router.patch(`${inventoryBase}/${item.id}/equip`, {}, { preserveScroll: true })
-  }
-
-  const toggleAttune = (item: InventoryItem) => {
-    router.patch(`${inventoryBase}/${item.id}/attune`, {}, { preserveScroll: true })
   }
 
   const deleteItem = (item: InventoryItem) => {
@@ -768,9 +760,6 @@ function InventoryTab({ character }: { character: Character }) {
         <span><span className="font-mono text-[var(--color-text-base)]">{items.length}</span> items</span>
         <span><span className="font-mono text-[var(--color-text-base)]">{totalWeight.toFixed(1)}</span> lb total</span>
         <span><span className="font-mono text-[var(--color-text-base)]">{cpToDisplay(totalValue)}</span> total value</span>
-        {attuned > 0 && (
-          <span className="opacity-40"><span className="font-mono">{attuned}</span> marked bound</span>
-        )}
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => setShowSnapshots(v => !v)}>
             {showSnapshots ? 'Hide History' : 'History'}
@@ -865,7 +854,6 @@ function InventoryTab({ character }: { character: Character }) {
                       <span className="text-[var(--color-text-bright)] flex-1">{item.name}</span>
                       {item.quantity > 1 && <span className="text-[var(--color-text-dim)]">×{item.quantity}</span>}
                       {item.is_magical && <Badge variant="arcane">M</Badge>}
-                      {item.attuned && <Badge variant="rune">A</Badge>}
                       {item.category && <span className="text-[var(--color-text-dim)]">{item.category}</span>}
                     </div>
                   ))}
@@ -898,7 +886,6 @@ function InventoryTab({ character }: { character: Character }) {
                     key={item.id}
                     item={item}
                     onEquip={() => toggleEquip(item)}
-                    onAttune={() => toggleAttune(item)}
                     onEdit={() => startEdit(item)}
                     onDelete={() => deleteItem(item)}
                   />
@@ -915,13 +902,11 @@ function InventoryTab({ character }: { character: Character }) {
 function ItemRow({
   item,
   onEquip,
-  onAttune,
   onEdit,
   onDelete,
 }: {
   item: InventoryItem
   onEquip: () => void
-  onAttune: () => void
   onEdit: () => void
   onDelete: () => void
 }) {

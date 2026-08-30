@@ -225,7 +225,7 @@ Respond ONLY with a JSON object wrapped in <extraction> tags, no other text:
       "max_hp": null,
       "gold": null,
       "experience_points": null,
-      "spell_slots_used": null,
+      "memorization_used": null,
       "notes": "optional short note about what happened"
     }
   ],
@@ -320,7 +320,7 @@ PROMPT;
             if (! $character) continue;
 
             $fields = [];
-            foreach (['current_hp', 'max_hp', 'gold', 'experience_points', 'spell_slots_used'] as $field) {
+            foreach (['current_hp', 'max_hp', 'gold', 'experience_points', 'memorization_used'] as $field) {
                 if (isset($update[$field]) && $update[$field] !== null) {
                     $fields[$field] = $update[$field];
                 }

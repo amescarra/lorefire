@@ -32,41 +32,41 @@ const SPELL_LEVEL_LABELS: Record<number, string> = {
 
 // ── Suggested spells by class ─────────────────────────────────────────
 // Names and school tags only — no copyrighted rulebook text.
-const CLASS_SPELL_SUGGESTIONS: Record<string, Array<{ name: string; level: number; school: string; casting_time: string; range: string; components: string; duration: string; concentration: boolean; ritual: boolean }>> = {
+const CLASS_SPELL_SUGGESTIONS: Record<string, Array<{ name: string; level: number; school: string; casting_time: string; range: string; components: string; duration: string }>> = {
   Mage: [
-    { name: 'Armor',              level: 1, school: 'abjuration',    casting_time: '1 round', range: 'Touch', components: 'V, S, M', duration: 'Special', concentration: false, ritual: false },
-    { name: 'Burning Hands',      level: 1, school: 'invocation',    casting_time: '1', range: '0', components: 'V, S', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special', concentration: false, ritual: false },
-    { name: 'Detect Magic',       level: 1, school: 'divination',    casting_time: '1', range: '0', components: 'V, S', duration: '2 rds/level', concentration: false, ritual: false },
-    { name: 'Magic Missile',      level: 1, school: 'invocation',    casting_time: '1', range: '60 yds + 10 yds/level', components: 'V, S', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Sleep',              level: 1, school: 'enchantment',   casting_time: '1', range: '30 yds', components: 'V, S, M', duration: '5 rds/level', concentration: false, ritual: false },
-    { name: 'Invisibility',       level: 2, school: 'illusion',      casting_time: '2', range: 'Touch', components: 'V, S, M', duration: 'Special', concentration: false, ritual: false },
-    { name: 'Web',                level: 2, school: 'invocation',    casting_time: '2', range: '5 yds/level', components: 'V, S, M', duration: '2 turns/level', concentration: false, ritual: false },
-    { name: 'Fireball',           level: 3, school: 'invocation',    casting_time: '3', range: '10 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Lightning Bolt',     level: 3, school: 'invocation',    casting_time: '3', range: '40 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
+    { name: 'Armor',              level: 1, school: 'abjuration',    casting_time: '1 round', range: 'Touch', components: 'V, S, M', duration: 'Special' },
+    { name: 'Burning Hands',      level: 1, school: 'invocation',    casting_time: '1', range: '0', components: 'V, S', duration: 'Instantaneous' },
+    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special' },
+    { name: 'Detect Magic',       level: 1, school: 'divination',    casting_time: '1', range: '0', components: 'V, S', duration: '2 rds/level' },
+    { name: 'Magic Missile',      level: 1, school: 'invocation',    casting_time: '1', range: '60 yds + 10 yds/level', components: 'V, S', duration: 'Instantaneous' },
+    { name: 'Sleep',              level: 1, school: 'enchantment',   casting_time: '1', range: '30 yds', components: 'V, S, M', duration: '5 rds/level' },
+    { name: 'Invisibility',       level: 2, school: 'illusion',      casting_time: '2', range: 'Touch', components: 'V, S, M', duration: 'Special' },
+    { name: 'Web',                level: 2, school: 'invocation',    casting_time: '2', range: '5 yds/level', components: 'V, S, M', duration: '2 turns/level' },
+    { name: 'Fireball',           level: 3, school: 'invocation',    casting_time: '3', range: '10 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous' },
+    { name: 'Lightning Bolt',     level: 3, school: 'invocation',    casting_time: '3', range: '40 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous' },
   ],
   Bard: [
-    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special', concentration: false, ritual: false },
-    { name: 'Friends',            level: 1, school: 'enchantment',   casting_time: '1', range: '0', components: 'V, S, M', duration: '1d4 rds + 1 rd/level', concentration: false, ritual: false },
-    { name: 'Identify',           level: 1, school: 'divination',    casting_time: 'Special', range: '0', components: 'V, S, M', duration: '1 rd/level', concentration: false, ritual: false },
+    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special' },
+    { name: 'Friends',            level: 1, school: 'enchantment',   casting_time: '1', range: '0', components: 'V, S, M', duration: '1d4 rds + 1 rd/level' },
+    { name: 'Identify',           level: 1, school: 'divination',    casting_time: 'Special', range: '0', components: 'V, S, M', duration: '1 rd/level' },
   ],
   Cleric: [
-    { name: 'Bless',              level: 1, school: 'conjuration',   casting_time: '1 rd', range: '60 yds', components: 'V, S, M', duration: '6 rds', concentration: false, ritual: false },
-    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent', concentration: false, ritual: false },
-    { name: 'Detect Evil',        level: 1, school: 'divination',    casting_time: '1 rd', range: '0', components: 'V, S, M', duration: '1 turn + 5 rds/level', concentration: false, ritual: false },
-    { name: 'Hold Person',        level: 2, school: 'enchantment',   casting_time: '5', range: '120 yds', components: 'V, S, F', duration: '2 rds/level', concentration: false, ritual: false },
+    { name: 'Bless',              level: 1, school: 'conjuration',   casting_time: '1 rd', range: '60 yds', components: 'V, S, M', duration: '6 rds' },
+    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent' },
+    { name: 'Detect Evil',        level: 1, school: 'divination',    casting_time: '1 rd', range: '0', components: 'V, S, M', duration: '1 turn + 5 rds/level' },
+    { name: 'Hold Person',        level: 2, school: 'enchantment',   casting_time: '5', range: '120 yds', components: 'V, S, F', duration: '2 rds/level' },
   ],
   Druid: [
-    { name: 'Entangle',           level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V, S, G', duration: '1 turn', concentration: false, ritual: false },
-    { name: 'Faerie Fire',        level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V', duration: '4 rds/level', concentration: false, ritual: false },
-    { name: 'Call Lightning',     level: 3, school: 'alteration',    casting_time: '1 turn', range: '360 yds', components: 'V, S', duration: '1 turn/level', concentration: false, ritual: false },
+    { name: 'Entangle',           level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V, S, G', duration: '1 turn' },
+    { name: 'Faerie Fire',        level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V', duration: '4 rds/level' },
+    { name: 'Call Lightning',     level: 3, school: 'alteration',    casting_time: '1 turn', range: '360 yds', components: 'V, S', duration: '1 turn/level' },
   ],
   Fighter: [],
   Paladin: [
-    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent', concentration: false, ritual: false },
+    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent' },
   ],
   Ranger: [
-    { name: 'Animal Friendship',  level: 1, school: 'enchantment',   casting_time: '1 hr', range: 'Touch', components: 'V, S, M', duration: 'Permanent', concentration: false, ritual: false },
+    { name: 'Animal Friendship',  level: 1, school: 'enchantment',   casting_time: '1 hr', range: 'Touch', components: 'V, S, M', duration: 'Permanent' },
   ],
   Thief: [],
   Other: [],
@@ -81,8 +81,6 @@ const BLANK_SPELL = {
   range: '',
   components: '',
   duration: '',
-  concentration: false,
-  ritual: false,
   description: '',
   is_prepared: false,
 }
@@ -124,8 +122,6 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       range: spell.range ?? '',
       components: spell.components ?? '',
       duration: spell.duration ?? '',
-      concentration: spell.concentration,
-      ritual: spell.ritual,
       description: spell.description ?? '',
       is_prepared: spell.is_prepared,
     })
@@ -142,8 +138,6 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       range: s.range,
       components: s.components,
       duration: s.duration,
-      concentration: s.concentration,
-      ritual: s.ritual,
       description: '',
       is_prepared: true,
     })
@@ -160,8 +154,6 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     setSubmitting(true)
     const payload = {
       ...form,
-      concentration: form.concentration ? 1 : 0,
-      ritual: form.ritual ? 1 : 0,
       is_prepared: form.is_prepared ? 1 : 0,
     }
     if (editingSpell) {
@@ -305,12 +297,6 @@ function SpellRow({
 
         {/* Tags */}
         <div className="flex items-center gap-1 shrink-0">
-          {spell.concentration && (
-            <span className="px-1 py-0 text-[9px] rounded border border-[var(--color-warning)]/50 text-[var(--color-warning)] font-mono leading-4">C</span>
-          )}
-          {spell.ritual && (
-            <span className="px-1 py-0 text-[9px] rounded border border-[var(--color-rune-dim)] text-[var(--color-rune)] font-mono leading-4">R</span>
-          )}
           {spell.school && (
             <span
               className="hidden sm:inline px-1.5 py-0 text-[9px] rounded uppercase tracking-widest leading-4"
@@ -461,12 +447,6 @@ function SpellModal({
                       {`Lvl ${s.level}`}
                     </span>
                     <span className="text-sm text-[var(--color-text-bright)] flex-1">{s.name}</span>
-                    {s.concentration && (
-                      <span className="text-[9px] text-[var(--color-warning)] font-mono">C</span>
-                    )}
-                    {s.ritual && (
-                      <span className="text-[9px] text-[var(--color-rune)] font-mono">R</span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -613,16 +593,6 @@ function ManualSpellForm({
             hint="Currently memorized"
           />
         )}
-        <ToggleChip
-          label="Concentration"
-          active={form.concentration}
-          onClick={() => set('concentration', !form.concentration)}
-        />
-        <ToggleChip
-          label="Ritual"
-          active={form.ritual}
-          onClick={() => set('ritual', !form.ritual)}
-        />
       </div>
     </>
   )

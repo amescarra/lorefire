@@ -19,6 +19,10 @@ trait ValidatesAdnd2eCharacter
             'subrace' => 'nullable|string|max:255',
             'class' => 'required|string|max:255',
             'subclass' => 'nullable|string|max:255',
+            'class_path' => 'nullable|in:single,multi,dual',
+            'class_levels' => 'nullable|array',
+            'class_levels.*.class' => 'required_with:class_levels|string|max:50',
+            'class_levels.*.level' => 'required_with:class_levels|integer|min:1|max:20',
             'level' => 'required|integer|min:1|max:20',
             'background' => 'nullable|string|max:255',
             'alignment' => 'nullable|string|max:50',
@@ -45,16 +49,16 @@ trait ValidatesAdnd2eCharacter
         return array_merge($this->characterStoreRules(), [
             'experience_points' => 'integer|min:0',
             'thac0' => 'integer|min:-10|max:25',
-            'hit_die' => 'nullable|string|max:10',
+            'hit_die' => 'nullable|string|max:20',
             'saving_throws' => 'nullable|array',
             'weapon_proficiencies' => 'nullable|array',
             'nonweapon_proficiencies' => 'nullable|array',
             'priest_spheres' => 'nullable|array',
             'spellcasting_ability' => 'nullable|string|max:50',
-            'personality_traits' => 'nullable|string',
-            'ideals' => 'nullable|string',
-            'bonds' => 'nullable|string',
-            'flaws' => 'nullable|string',
+            'mannerisms' => 'nullable|string',
+            'motivations' => 'nullable|string',
+            'ties' => 'nullable|string',
+            'weaknesses' => 'nullable|string',
             'backstory' => 'nullable|string',
             'appearance_description' => 'nullable|string',
             'copper' => 'integer|min:0',
@@ -63,7 +67,7 @@ trait ValidatesAdnd2eCharacter
             'gold' => 'integer|min:0',
             'platinum' => 'integer|min:0',
             'class_features' => 'nullable|array',
-            'spell_slots' => 'nullable|array',
+            'memorization' => 'nullable|array',
             'portrait_style' => 'nullable|in:lifelike,renaissance,comic',
         ]);
     }
@@ -74,12 +78,28 @@ trait ValidatesAdnd2eCharacter
      */
     protected function applyEditionDefaults(array $data): array
     {
-        $defaults = Adnd2e::defaultsFor(
+        $path = (string) ($data['class_path'] ?? 'single');
+        $entries = Adnd2e::normalizeClassLevels(
+            $data['class_levels'] ?? null,
             (string) ($data['class'] ?? 'Fighter'),
             (int) ($data['level'] ?? 1),
+            $path,
+        );
+        if (count($entries) > 1 && $path === 'single') {
+            $path = 'multi';
+        }
+
+        $data['class_path'] = $path;
+        $data['class_levels'] = $entries;
+        $data['class'] = Adnd2e::displayClassName($entries, $path);
+        $data['level'] = Adnd2e::displayLevel($entries, $path);
+
+        $defaults = Adnd2e::defaultsForEntries(
+            $entries,
             (string) ($data['race'] ?? 'Human'),
             (int) ($data['wisdom'] ?? 10),
             $data['subclass'] ?? null,
+            $path,
         );
 
         foreach ($defaults as $key => $value) {

@@ -66,6 +66,35 @@ return new class extends Migration
             });
         }
 
+        if (Schema::hasColumn('characters', 'class')) {
+            foreach (DB::table('characters')->select('id', 'class', 'level')->orderBy('id')->get() as $row) {
+                $rewrite = \App\Support\Adnd2e::rewriteLegacyClass((string) $row->class);
+                $class = (string) $row->class;
+                $path = 'single';
+                $entries = null;
+                if (str_contains($class, '/')) {
+                    $path = 'multi';
+                    $entries = \App\Support\Adnd2e::normalizeClassLevels(null, $class, (int) ($row->level ?? 1), $path);
+                    $class = \App\Support\Adnd2e::displayClassName($entries, $path);
+                } elseif ($rewrite['mapped'] || $rewrite['rejected']) {
+                    $class = $rewrite['class'];
+                    $entries = [['class' => $class, 'level' => max(1, (int) ($row->level ?? 1))]];
+                }
+
+                $update = ['class' => $class];
+                if (Schema::hasColumn('characters', 'class_path')) {
+                    $update['class_path'] = $path;
+                }
+                if ($entries !== null && Schema::hasColumn('characters', 'class_levels')) {
+                    $update['class_levels'] = json_encode($entries);
+                }
+                if ($rewrite['rejected'] || $rewrite['mapped']) {
+                    $update['imported_data'] = json_encode(['legacy_class' => $row->class]);
+                }
+                DB::table('characters')->where('id', $row->id)->update($update);
+            }
+        }
+
         // SQLite stores integers without unsigned enforcement; leave campaign_id
         // as-is if the original create made it required. New installs are nullable.
         if (Schema::getConnection()->getDriverName() !== 'sqlite' && Schema::hasColumn('characters', 'campaign_id')) {

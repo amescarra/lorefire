@@ -16,16 +16,12 @@ class CharacterSpell extends Model
         'range',
         'components',
         'duration',
-        'concentration',
-        'ritual',
         'description',
         'is_prepared',
         'is_cast',
     ];
 
     protected $casts = [
-        'concentration' => 'boolean',
-        'ritual' => 'boolean',
         'is_prepared' => 'boolean',
         'is_cast' => 'boolean',
     ];

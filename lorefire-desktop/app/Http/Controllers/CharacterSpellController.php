@@ -12,18 +12,16 @@ class CharacterSpellController extends Controller
     public function store(Request $request, Character $character): RedirectResponse
     {
         $data = $request->validate([
-            'name'         => 'required|string|max:255',
-            'level'        => 'required|integer|min:1|max:9',
-            'school'       => 'nullable|string|max:100',
+            'name' => 'required|string|max:255',
+            'level' => 'required|integer|min:1|max:9',
+            'school' => 'nullable|string|max:100',
             'casting_time' => 'nullable|string|max:100',
-            'range'        => 'nullable|string|max:100',
-            'components'   => 'nullable|string|max:255',
-            'duration'     => 'nullable|string|max:100',
-            'concentration'=> 'boolean',
-            'ritual'       => 'boolean',
-            'description'  => 'nullable|string',
-            'is_prepared'  => 'boolean',
-            'is_cast'      => 'boolean',
+            'range' => 'nullable|string|max:100',
+            'components' => 'nullable|string|max:255',
+            'duration' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'is_prepared' => 'boolean',
+            'is_cast' => 'boolean',
         ]);
 
         $character->spells()->create($data);
@@ -36,18 +34,16 @@ class CharacterSpellController extends Controller
         abort_if($spell->character_id !== $character->id, 403);
 
         $data = $request->validate([
-            'name'         => 'required|string|max:255',
-            'level'        => 'required|integer|min:1|max:9',
-            'school'       => 'nullable|string|max:100',
+            'name' => 'required|string|max:255',
+            'level' => 'required|integer|min:1|max:9',
+            'school' => 'nullable|string|max:100',
             'casting_time' => 'nullable|string|max:100',
-            'range'        => 'nullable|string|max:100',
-            'components'   => 'nullable|string|max:255',
-            'duration'     => 'nullable|string|max:100',
-            'concentration'=> 'boolean',
-            'ritual'       => 'boolean',
-            'description'  => 'nullable|string',
-            'is_prepared'  => 'boolean',
-            'is_cast'      => 'boolean',
+            'range' => 'nullable|string|max:100',
+            'components' => 'nullable|string|max:255',
+            'duration' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'is_prepared' => 'boolean',
+            'is_cast' => 'boolean',
         ]);
 
         $spell->update($data);

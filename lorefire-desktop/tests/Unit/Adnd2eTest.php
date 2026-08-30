@@ -66,7 +66,7 @@ class Adnd2eTest extends TestCase
         ]);
 
         $this->assertSame(5, $result['current_hp']);
-        $this->assertNull($result['spell_slots_used']);
+        $this->assertNull($result['memorization_used']);
         $this->assertSame(10, $result['class_features']['lay_on_hands_max']);
         $this->assertSame(10, $result['class_features']['lay_on_hands_current']);
         $this->assertTrue($result['class_features']['detect_evil_ready']);
@@ -87,6 +87,36 @@ class Adnd2eTest extends TestCase
         $this->assertSame(20, $defaults['thac0']);
         $this->assertSame('d4', $defaults['hit_die']);
         $this->assertSame(12, $defaults['speed']);
-        $this->assertSame(1, $defaults['spell_slots'][1]);
+        $this->assertSame(1, $defaults['memorization'][1]);
+    }
+
+    public function test_rewrites_and_rejects_fifth_edition_class_names(): void
+    {
+        $this->assertSame('Mage', Adnd2e::rewriteLegacyClass('Warlock')['class']);
+        $this->assertTrue(Adnd2e::rewriteLegacyClass('Warlock')['mapped']);
+        $this->assertSame('Thief', Adnd2e::rewriteLegacyClass('Rogue')['class']);
+        $this->assertSame('Fighter', Adnd2e::rewriteLegacyClass('Barbarian')['class']);
+        $unknown = Adnd2e::rewriteLegacyClass('Echo Knight');
+        $this->assertTrue($unknown['rejected']);
+        $this->assertSame('Fighter', $unknown['class']);
+    }
+
+    public function test_multi_class_uses_best_thac0_and_saves(): void
+    {
+        $entries = Adnd2e::normalizeClassLevels(null, 'Fighter/Mage', 5, 'multi');
+        $this->assertCount(2, $entries);
+        $this->assertSame('Fighter/Mage', Adnd2e::displayClassName($entries, 'multi'));
+        $this->assertSame(16, Adnd2e::combinedThac0($entries));
+        $this->assertSame('d10/d4', Adnd2e::combinedHitDie($entries));
+        $saves = Adnd2e::combinedSavingThrows($entries);
+        $this->assertSame(11, $saves['rod']);
+    }
+
+    public function test_weapon_speed_factors(): void
+    {
+        $this->assertSame(2, Adnd2e::weaponSpeed('Dagger'));
+        $this->assertSame(5, Adnd2e::weaponSpeed('long sword'));
+        $this->assertSame(10, Adnd2e::weaponSpeed('Two-handed sword'));
+        $this->assertNull(Adnd2e::weaponSpeed('Mysterious orb'));
     }
 }

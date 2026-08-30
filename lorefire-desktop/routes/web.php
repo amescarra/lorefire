@@ -23,6 +23,7 @@ use App\Http\Controllers\StorageFileController;
 use App\Http\Controllers\ChunkedAudioController;
 use App\Http\Controllers\TranscriptionController;
 use App\Http\Controllers\CharacterClassFeaturesController;
+use App\Http\Controllers\CharacterConditionController;
 use App\Http\Controllers\CharacterHpController;
 use App\Http\Controllers\LiveSessionController;
 use App\Models\AppSetting;
@@ -61,8 +62,8 @@ Route::get('campaigns/{campaign}/party-portrait-status', [CampaignPartyImageCont
 Route::resource('characters', StandaloneCharacterController::class);
 Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnight'])
     ->name('characters.rest.overnight');
-Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'update'])
-    ->name('characters.spell-slots.update');
+Route::patch('characters/{character}/memorization', [CharacterSpellSlotsController::class, 'update'])
+    ->name('characters.memorization.update');
 Route::patch('characters/{character}/hp', [CharacterHpController::class, 'update'])
     ->name('characters.hp.update');
 Route::patch('characters/{character}/class-features', [CharacterClassFeaturesController::class, 'update'])
@@ -77,8 +78,10 @@ Route::delete('characters/{character}/inventory/{item}', [InventoryItemControlle
     ->name('characters.inventory.destroy');
 Route::patch('characters/{character}/inventory/{item}/equip', [InventoryItemController::class, 'toggleEquipped'])
     ->name('characters.inventory.equip');
-Route::patch('characters/{character}/inventory/{item}/attune', [InventoryItemController::class, 'toggleAttuned'])
-    ->name('characters.inventory.attune');
+Route::post('characters/{character}/conditions', [CharacterConditionController::class, 'store'])
+    ->name('characters.conditions.store');
+Route::delete('characters/{character}/conditions/{condition}', [CharacterConditionController::class, 'destroy'])
+    ->name('characters.conditions.destroy');
 
 // Spells (flat routes — work for both campaign and standalone characters)
 Route::post('characters/{character}/spells', [CharacterSpellController::class, 'store'])
@@ -124,8 +127,8 @@ Route::prefix('campaigns/{campaign}')->name('campaigns.')->group(function () {
     Route::get('sessions/{session}/live', [LiveSessionController::class, 'show'])->name('sessions.live');
     Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnightForCampaign'])
         ->name('characters.rest.overnight');
-    Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'updateForCampaign'])
-        ->name('characters.spell-slots.update');
+    Route::patch('characters/{character}/memorization', [CharacterSpellSlotsController::class, 'updateForCampaign'])
+        ->name('characters.memorization.update');
     Route::patch('characters/{character}/class-features', [CharacterClassFeaturesController::class, 'updateForCampaign'])
         ->name('characters.class-features.update');
     // Speaker profiles (campaign-scoped)

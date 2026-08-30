@@ -80,7 +80,7 @@ class GenerateBardicSummary implements ShouldQueue
                     if ($c->level) $desc .= " (Level {$c->level})";
                     if ($c->player_name) $desc .= " — played by {$c->player_name}";
                     if ($c->background) $desc .= ". Background: {$c->background}";
-                    if ($c->personality_traits) $desc .= ". Personality: {$c->personality_traits}";
+                    if ($c->mannerisms) $desc .= ". Mannerisms: {$c->mannerisms}";
                     $lines[] = $desc;
                 }
             }

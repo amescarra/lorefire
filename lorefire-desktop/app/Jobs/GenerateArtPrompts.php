@@ -208,8 +208,8 @@ PROMPT;
             if ($c->appearance_description) {
                 $lines[] = "  Appearance: " . trim($c->appearance_description);
             }
-            if ($c->personality_traits) {
-                $lines[] = "  Personality: " . trim($c->personality_traits);
+            if ($c->mannerisms) {
+                $lines[] = "  Mannerisms: " . trim($c->mannerisms);
             }
         }
 

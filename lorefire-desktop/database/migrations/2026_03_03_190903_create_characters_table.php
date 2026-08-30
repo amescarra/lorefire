@@ -20,6 +20,8 @@ return new class extends Migration
             $table->string('subrace')->nullable();
             $table->string('class');
             $table->string('subclass')->nullable(); // kit or specialist school
+            $table->string('class_path')->default('single'); // single, multi, dual
+            $table->json('class_levels')->nullable();
             $table->unsignedTinyInteger('level')->default(1);
             $table->string('background')->nullable();
             $table->string('alignment')->nullable();
@@ -51,15 +53,15 @@ return new class extends Migration
             $table->unsignedInteger('electrum')->default(0);
             $table->unsignedInteger('gold')->default(0);
             $table->unsignedInteger('platinum')->default(0);
-            // Vancian memorization — capacity per spell level
+            // Vancian memorization — capacity / casts used per spell level
             $table->string('spellcasting_ability')->nullable();
-            $table->json('spell_slots')->nullable();
-            $table->json('spell_slots_used')->nullable();
-            // Misc
-            $table->text('personality_traits')->nullable();
-            $table->text('ideals')->nullable();
-            $table->text('bonds')->nullable();
-            $table->text('flaws')->nullable();
+            $table->json('memorization')->nullable();
+            $table->json('memorization_used')->nullable();
+            // Character notes (not 5e personality traits)
+            $table->text('mannerisms')->nullable();
+            $table->text('motivations')->nullable();
+            $table->text('ties')->nullable();
+            $table->text('weaknesses')->nullable();
             $table->text('backstory')->nullable();
             $table->string('portrait_path')->nullable();
             $table->json('imported_data')->nullable();

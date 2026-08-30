@@ -29,6 +29,8 @@ export interface Character {
   subrace: string | null
   class: string
   subclass: string | null
+  class_path: 'single' | 'multi' | 'dual'
+  class_levels: Array<{ class: string; level: number }> | null
   level: number
   background: string | null
   alignment: string | null
@@ -56,12 +58,12 @@ export interface Character {
   gold: number
   platinum: number
   spellcasting_ability: string | null
-  spell_slots: Record<string, number> | null
-  spell_slots_used: Record<string, number> | null
-  personality_traits: string | null
-  ideals: string | null
-  bonds: string | null
-  flaws: string | null
+  memorization: Record<string, number> | null
+  memorization_used: Record<string, number> | null
+  mannerisms: string | null
+  motivations: string | null
+  ties: string | null
+  weaknesses: string | null
   backstory: string | null
   appearance_description: string | null
   portrait_path: string | null
@@ -88,8 +90,6 @@ export interface CharacterSpell {
   range: string | null
   components: string | null
   duration: string | null
-  concentration: boolean
-  ritual: boolean
   description: string | null
   is_prepared: boolean
   is_cast: boolean
@@ -104,9 +104,7 @@ export interface InventoryItem {
   weight: number
   value_cp: number
   equipped: boolean
-  attuned: boolean
   is_magical: boolean
-  requires_attunement: boolean
   description: string | null
   properties: string[] | null
 }

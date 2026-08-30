@@ -213,6 +213,228 @@ class Adnd2e
         };
     }
 
+    /**
+     * Map leftover 5e class names to a 2E class, or reject unknown leftovers.
+     *
+     * @return array{class: string, mapped: bool, rejected: bool, original: string}
+     */
+    public static function rewriteLegacyClass(string $class): array
+    {
+        $original = trim($class);
+        $mapped = match (mb_strtolower($original)) {
+            'warlock', 'sorcerer', 'wizard', 'artificer' => 'Mage',
+            'rogue' => 'Thief',
+            'barbarian', 'monk', 'blood hunter' => 'Fighter',
+            'priest' => 'Cleric',
+            default => $original,
+        };
+
+        $normalized = self::normalizeClass($mapped);
+        $known = in_array($normalized, self::CLASSES, true) || in_array($mapped, self::SPECIALIST_SCHOOLS, true);
+
+        if (! $known) {
+            return [
+                'class' => 'Fighter',
+                'mapped' => false,
+                'rejected' => true,
+                'original' => $original,
+            ];
+        }
+
+        return [
+            'class' => $normalized,
+            'mapped' => $normalized !== $original && $mapped !== $original,
+            'rejected' => false,
+            'original' => $original,
+        ];
+    }
+
+    /**
+     * @param  array<int, mixed>|null  $classLevels
+     * @return array<int, array{class: string, level: int}>
+     */
+    public static function normalizeClassLevels(?array $classLevels, string $class, int $level, string $path = 'single'): array
+    {
+        $entries = [];
+        if (is_array($classLevels)) {
+            foreach ($classLevels as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+                $name = trim((string) ($entry['class'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+                $rewritten = self::rewriteLegacyClass($name);
+                $entries[] = [
+                    'class' => $rewritten['class'],
+                    'level' => max(1, min(20, (int) ($entry['level'] ?? $level))),
+                ];
+            }
+        }
+
+        if ($entries === []) {
+            if (str_contains($class, '/')) {
+                foreach (preg_split('/\s*\/\s*/', $class) ?: [] as $part) {
+                    $rewritten = self::rewriteLegacyClass($part);
+                    $entries[] = ['class' => $rewritten['class'], 'level' => max(1, $level)];
+                }
+                $path = count($entries) > 1 ? 'multi' : $path;
+            } else {
+                $rewritten = self::rewriteLegacyClass($class);
+                $entries[] = ['class' => $rewritten['class'], 'level' => max(1, $level)];
+            }
+        }
+
+        if ($path === 'single') {
+            return array_slice($entries, 0, 1);
+        }
+
+        return array_values(array_slice($entries, 0, 3));
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     */
+    public static function displayClassName(array $entries, string $path = 'single'): string
+    {
+        $names = array_map(fn (array $e) => $e['class'], $entries);
+        if ($path === 'dual' && count($names) >= 2) {
+            return $names[0].' → '.$names[1];
+        }
+        if (count($names) > 1) {
+            return implode('/', $names);
+        }
+
+        return $names[0] ?? 'Fighter';
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     */
+    public static function displayLevel(array $entries, string $path = 'single'): int
+    {
+        if ($entries === []) {
+            return 1;
+        }
+        if ($path === 'dual') {
+            return (int) ($entries[array_key_last($entries)]['level'] ?? 1);
+        }
+
+        return max(array_map(fn (array $e) => (int) $e['level'], $entries));
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     */
+    public static function combinedThac0(array $entries): int
+    {
+        $values = array_map(fn (array $e) => self::thac0($e['class'], (int) $e['level']), $entries);
+
+        return $values === [] ? 20 : min($values);
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     * @return array{paralyzation: int, rod: int, petrification: int, breath: int, spell: int}
+     */
+    public static function combinedSavingThrows(array $entries): array
+    {
+        $combined = [
+            'paralyzation' => 20,
+            'rod' => 20,
+            'petrification' => 20,
+            'breath' => 20,
+            'spell' => 20,
+        ];
+        foreach ($entries as $entry) {
+            $row = self::savingThrows($entry['class'], (int) $entry['level']);
+            foreach ($combined as $key => $current) {
+                $combined[$key] = min($current, $row[$key]);
+            }
+        }
+
+        return $combined;
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     */
+    public static function combinedHitDie(array $entries): string
+    {
+        $dice = [];
+        foreach ($entries as $entry) {
+            $die = self::hitDie($entry['class']);
+            if (! in_array($die, $dice, true)) {
+                $dice[] = $die;
+            }
+        }
+
+        return $dice === [] ? 'd10' : implode('/', $dice);
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     * @return array<int, int>
+     */
+    public static function combinedMemorization(array $entries, int $wisdom = 10, ?string $subclass = null): array
+    {
+        $merged = [];
+        foreach ($entries as $entry) {
+            $merged = self::unionCapacity(
+                $merged,
+                self::memorizationCapacity($entry['class'], (int) $entry['level'], $wisdom, $subclass)
+            );
+        }
+
+        return array_filter($merged, fn (int $n) => $n > 0);
+    }
+
+    public static function anyCaster(array $entries): bool
+    {
+        foreach ($entries as $entry) {
+            $class = $entry['class'];
+            $level = (int) $entry['level'];
+            if (self::isWizard($class) || self::isPriest($class) || $class === 'Bard') {
+                return true;
+            }
+            if ($class === 'Paladin' && $level >= 9) {
+                return true;
+            }
+            if ($class === 'Ranger' && $level >= 8) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Published weapon speed factors (initiative modifier). Names only.
+     */
+    public static function weaponSpeed(?string $weapon): ?int
+    {
+        if ($weapon === null || trim($weapon) === '') {
+            return null;
+        }
+
+        $key = mb_strtolower(trim($weapon));
+        $key = preg_replace('/^(a|an|the)\s+/', '', $key) ?? $key;
+
+        return match (true) {
+            str_contains($key, 'dagger') || str_contains($key, 'dart') => 2,
+            str_contains($key, 'short sword') => 3,
+            str_contains($key, 'hand axe') || str_contains($key, 'club') || str_contains($key, 'staff') || str_contains($key, 'warhammer') || str_contains($key, 'javelin') => 4,
+            str_contains($key, 'long sword') || str_contains($key, 'spear') || str_contains($key, 'mace') || str_contains($key, 'sling') => 5,
+            str_contains($key, 'bastard') || str_contains($key, 'flail') || str_contains($key, 'morning') => 6,
+            str_contains($key, 'battle axe') || str_contains($key, 'short bow') || str_contains($key, 'light crossbow') => 7,
+            str_contains($key, 'long bow') || str_contains($key, 'lance') => 8,
+            str_contains($key, 'halberd') => 9,
+            str_contains($key, 'two-handed') || str_contains($key, 'two handed') || str_contains($key, 'heavy crossbow') => 10,
+            default => null,
+        };
+    }
+
     public static function isSpecialist(string $class, ?string $subclass = null): bool
     {
         if (in_array($class, self::SPECIALIST_SCHOOLS, true)) {
@@ -655,7 +877,7 @@ class Adnd2e
      * Overnight rest: recover 1 hit point (natural healing) and rememorize.
      *
      * @param  array<string, mixed>  $classFeatures
-     * @return array{current_hp: int, spell_slots_used: null, class_features: array<string, mixed>}
+     * @return array{current_hp: int, memorization_used: null, class_features: array<string, mixed>}
      */
     public static function overnightRest(int $currentHp, int $maxHp, string $class, int $level, array $classFeatures = []): array
     {
@@ -689,7 +911,7 @@ class Adnd2e
 
         return [
             'current_hp' => $healed,
-            'spell_slots_used' => null,
+            'memorization_used' => null,
             'class_features' => $cf,
         ];
     }
@@ -706,33 +928,64 @@ class Adnd2e
         int $wisdom = 10,
         ?string $subclass = null,
     ): array {
-        $capacity = self::memorizationCapacity($class, $level, $wisdom, $subclass);
+        $entries = self::normalizeClassLevels(null, $class, $level, 'single');
+
+        return self::defaultsForEntries($entries, $race, $wisdom, $subclass, 'single');
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries
+     * @return array<string, mixed>
+     */
+    public static function defaultsForEntries(
+        array $entries,
+        string $race,
+        int $wisdom = 10,
+        ?string $subclass = null,
+        string $path = 'single',
+    ): array {
+        $capacity = self::combinedMemorization($entries, $wisdom, $subclass);
         $slots = [];
         foreach ($capacity as $spellLevel => $count) {
             $slots[(string) $spellLevel] = $count;
         }
 
+        $primary = $entries[0]['class'] ?? 'Fighter';
         $spheres = null;
-        if (self::normalizeClass($class) === 'Cleric') {
-            $spheres = ['major' => ['All', 'Healing'], 'minor' => ['Divination']];
-        } elseif (self::normalizeClass($class) === 'Druid') {
-            $spheres = ['major' => ['All', 'Animal', 'Elemental', 'Healing', 'Plant', 'Weather'], 'minor' => []];
+        foreach ($entries as $entry) {
+            if (self::normalizeClass($entry['class']) === 'Cleric') {
+                $spheres = ['major' => ['All', 'Healing'], 'minor' => ['Divination']];
+            } elseif (self::normalizeClass($entry['class']) === 'Druid') {
+                $spheres = ['major' => ['All', 'Animal', 'Elemental', 'Healing', 'Plant', 'Weather'], 'minor' => []];
+                break;
+            }
+        }
+
+        $casterAbility = null;
+        foreach ($entries as $entry) {
+            if (self::isWizard($entry['class']) || self::normalizeClass($entry['class']) === 'Bard') {
+                $casterAbility = 'intelligence';
+                break;
+            }
+            if (self::isPriest($entry['class']) || in_array(self::normalizeClass($entry['class']), ['Paladin', 'Ranger'], true)) {
+                $casterAbility = 'wisdom';
+            }
         }
 
         return [
-            'thac0' => self::thac0($class, $level),
+            'class' => self::displayClassName($entries, $path),
+            'level' => self::displayLevel($entries, $path),
+            'class_path' => $path,
+            'class_levels' => $entries,
+            'thac0' => self::combinedThac0($entries),
             'speed' => self::movementRate($race),
-            'hit_die' => self::hitDie($class),
+            'hit_die' => self::combinedHitDie($entries),
             'armor_class' => 10,
-            'saving_throws' => self::savingThrows($class, $level),
-            'spell_slots' => $slots === [] ? null : $slots,
-            'spell_slots_used' => null,
+            'saving_throws' => self::combinedSavingThrows($entries),
+            'memorization' => $slots === [] ? null : $slots,
+            'memorization_used' => null,
             'priest_spheres' => $spheres,
-            'spellcasting_ability' => self::isWizard($class) || self::normalizeClass($class) === 'Bard'
-                ? 'intelligence'
-                : (self::isPriest($class) || in_array(self::normalizeClass($class), ['Paladin', 'Ranger'], true)
-                    ? 'wisdom'
-                    : null),
+            'spellcasting_ability' => $casterAbility,
         ];
     }
 
@@ -924,5 +1177,19 @@ class Adnd2e
         }
 
         return $base;
+    }
+
+    /**
+     * @param  array<int, int>  $a
+     * @param  array<int, int>  $b
+     * @return array<int, int>
+     */
+    private static function unionCapacity(array $a, array $b): array
+    {
+        foreach ($b as $level => $count) {
+            $a[$level] = ($a[$level] ?? 0) + $count;
+        }
+
+        return $a;
     }
 }

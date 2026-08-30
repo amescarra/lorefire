@@ -5,6 +5,7 @@ import AppLayout from '@/Layouts/AppLayout'
 import { Card, CardHeader } from '@/Components/Card'
 import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
+import { ConditionManager } from '@/Components/ConditionManager'
 import { HpBar } from '@/Components/HpBar'
 import { useRecording } from '@/Contexts/RecordingContext'
 import { Campaign, GameSession, Character, InventoryItem, CharacterSpell } from '@/types'
@@ -190,9 +191,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
   const baseUrl    = standalone
     ? `/characters/${character.id}`
     : `/campaigns/${campaignId}/characters/${character.id}`
-  const spellSlotsUrl = standalone
-    ? `/characters/${character.id}/spell-slots`
-    : `/campaigns/${campaignId}/characters/${character.id}/spell-slots`
+  const memorizationUrl = standalone
+    ? `/characters/${character.id}/memorization`
+    : `/campaigns/${campaignId}/characters/${character.id}/memorization`
   const restUrl = standalone
     ? `/characters/${character.id}/rest`
     : `/campaigns/${campaignId}/characters/${character.id}/rest`
@@ -209,12 +210,12 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
   const [currentHp, setCurrentHp]   = useState(character.current_hp)
 
   // Local mirror of memorization capacity used
-  const [slotsUsed, setSlotsUsed]   = useState<Record<string, number>>(character.spell_slots_used ?? {})
+  const [slotsUsed, setSlotsUsed]   = useState<Record<string, number>>(character.memorization_used ?? {})
 
   // Local mirror of class features (for lay on hands etc.)
   const [classFeatures, setClassFeatures] = useState<Record<string, unknown>>(character.class_features ?? {})
 
-  const hasSpellSlots = !!(character.spell_slots && Object.keys(character.spell_slots).length > 0)
+  const hasSpellSlots = !!(character.memorization && Object.keys(character.memorization).length > 0)
 
   // Lay on Hands — fall back to level*5 for Paladins who haven't saved keys yet
   const defaultLayMax = character.class === 'Paladin' ? character.level * 2 : null
@@ -279,10 +280,10 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
   const toggleSlot = async (level: number, action: 'use' | 'recover') => {
     const key   = String(level)
     const used  = slotsUsed[key] ?? 0
-    const max   = (character.spell_slots?.[key] ?? 0) as number
+    const max   = (character.memorization?.[key] ?? 0) as number
     const next  = action === 'use' ? Math.min(max, used + 1) : Math.max(0, used - 1)
     setSlotsUsed(prev => ({ ...prev, [key]: next }))
-    await fetch(spellSlotsUrl, {
+    await fetch(memorizationUrl, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
       body: JSON.stringify({ level, action }),
@@ -486,25 +487,19 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             )}
 
             {/* Conditions */}
-            {character.conditions && character.conditions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {character.conditions.map(c => (
-                  <Badge key={c.id} variant="danger">{c.name}</Badge>
-                ))}
-              </div>
-            )}
+            <ConditionManager characterId={character.id} conditions={character.conditions ?? []} compact />
           </div>
         )}
 
         {/* Spells tab */}
         {tab === 'spells' && (
           <div className="flex flex-col gap-3">
-            {hasSpellSlots && character.spell_slots && (
+            {hasSpellSlots && character.memorization && (
               <div className="flex flex-col gap-2">
                 <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>
                   Memorized · click to cast · right-click to restore
                 </p>
-                {Object.entries(character.spell_slots)
+                {Object.entries(character.memorization)
                   .filter(([, max]) => (max as number) > 0)
                   .sort(([a], [b]) => Number(a) - Number(b))
                   .map(([level, maxRaw]) => {
@@ -546,11 +541,10 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                   .map(spell => (
                     <div key={spell.id} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
                       <span className="text-[9px] font-mono shrink-0" style={{ color: 'var(--color-rune-dim)' }}>
-                        {spell.level === 0 ? 'C' : spell.level}
+                        {spell.level}
                       </span>
                       <span className="text-xs flex-1 truncate" style={{ color: 'var(--color-text-bright)' }}>{spell.name}</span>
-                      {spell.concentration && <span className="text-[8px]" style={{ color: 'var(--color-arcane)' }}>C</span>}
-                      {spell.ritual      && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>R</span>}
+                      {spell.is_cast && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>cast</span>}
                     </div>
                   ))}
               </div>
@@ -575,7 +569,6 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                   </span>
                   {item.quantity > 1 && <span className="text-[10px] font-mono shrink-0" style={{ color: 'var(--color-text-dim)' }}>×{item.quantity}</span>}
                   {item.equipped && <span className="text-[8px] uppercase tracking-widest shrink-0" style={{ color: 'var(--color-rune)' }}>Eq</span>}
-                  {item.attuned && <span className="text-[8px] uppercase tracking-widest shrink-0" style={{ color: 'var(--color-arcane)' }}>At</span>}
                 </div>
               ))
             )}

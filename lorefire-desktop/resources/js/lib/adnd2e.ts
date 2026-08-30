@@ -276,6 +276,95 @@ export function vitalityState(currentHp: number): 'ok' | 'unconscious' | 'dying'
   return 'ok'
 }
 
+export type ClassEntry = { class: string; level: number }
+export type ClassPath = 'single' | 'multi' | 'dual'
+
+export function rewriteLegacyClass(name: string): string {
+  const key = name.trim().toLowerCase()
+  if (['warlock', 'sorcerer', 'wizard', 'artificer'].includes(key)) return 'Mage'
+  if (key === 'rogue') return 'Thief'
+  if (['barbarian', 'monk', 'blood hunter'].includes(key)) return 'Fighter'
+  if (key === 'priest') return 'Cleric'
+  return normalizeClass(name)
+}
+
+export function normalizeClassLevels(
+  classLevels: ClassEntry[] | null | undefined,
+  characterClass: string,
+  level: number,
+  path: ClassPath = 'single',
+): ClassEntry[] {
+  const fromJson = (classLevels ?? [])
+    .filter(e => e && e.class)
+    .map(e => ({ class: rewriteLegacyClass(e.class), level: Math.max(1, Math.min(20, Number(e.level) || level)) }))
+  let entries = fromJson
+  if (entries.length === 0) {
+    if (characterClass.includes('/')) {
+      entries = characterClass.split(/\s*\/\s*/).map(part => ({ class: rewriteLegacyClass(part), level }))
+    } else {
+      entries = [{ class: rewriteLegacyClass(characterClass), level }]
+    }
+  }
+  if (path === 'single') return entries.slice(0, 1)
+  return entries.slice(0, 3)
+}
+
+export function displayClassName(entries: ClassEntry[], path: ClassPath = 'single'): string {
+  const names = entries.map(e => e.class)
+  if (path === 'dual' && names.length >= 2) return `${names[0]} → ${names[1]}`
+  if (names.length > 1) return names.join('/')
+  return names[0] ?? 'Fighter'
+}
+
+export function displayLevel(entries: ClassEntry[], path: ClassPath = 'single'): number {
+  if (entries.length === 0) return 1
+  if (path === 'dual') return entries[entries.length - 1].level
+  return Math.max(...entries.map(e => e.level))
+}
+
+export function combinedThac0(entries: ClassEntry[]): number {
+  if (entries.length === 0) return 20
+  return Math.min(...entries.map(e => thac0(e.class, e.level)))
+}
+
+export function combinedSavingThrows(entries: ClassEntry[]): SavingThrows {
+  const empty: SavingThrows = { paralyzation: 20, rod: 20, petrification: 20, breath: 20, spell: 20 }
+  return entries.reduce((acc, e) => {
+    const row = savingThrows(e.class, e.level)
+    return {
+      paralyzation: Math.min(acc.paralyzation, row.paralyzation),
+      rod: Math.min(acc.rod, row.rod),
+      petrification: Math.min(acc.petrification, row.petrification),
+      breath: Math.min(acc.breath, row.breath),
+      spell: Math.min(acc.spell, row.spell),
+    }
+  }, empty)
+}
+
+export function combinedHitDie(entries: ClassEntry[]): string {
+  const dice = Array.from(new Set(entries.map(e => hitDie(e.class))))
+  return dice.join('/') || 'd10'
+}
+
+export function anyCaster(entries: ClassEntry[]): boolean {
+  return entries.some(e => isCaster(e.class, e.level))
+}
+
+export function weaponSpeed(weapon?: string | null): number | null {
+  if (!weapon) return null
+  const key = weapon.toLowerCase().replace(/^(a|an|the)\s+/, '')
+  if (key.includes('dagger') || key.includes('dart')) return 2
+  if (key.includes('short sword')) return 3
+  if (key.includes('hand axe') || key.includes('club') || key.includes('staff') || key.includes('warhammer') || key.includes('javelin')) return 4
+  if (key.includes('long sword') || key.includes('spear') || key.includes('mace') || key.includes('sling')) return 5
+  if (key.includes('bastard') || key.includes('flail') || key.includes('morning')) return 6
+  if (key.includes('battle axe') || key.includes('short bow') || key.includes('light crossbow')) return 7
+  if (key.includes('long bow') || key.includes('lance')) return 8
+  if (key.includes('halberd')) return 9
+  if (key.includes('two-handed') || key.includes('two handed') || key.includes('heavy crossbow')) return 10
+  return null
+}
+
 export function isCaster(characterClass: string, level: number): boolean {
   const c = normalizeClass(characterClass)
   if (c === 'Mage' || c === 'Cleric' || c === 'Druid' || c === 'Bard') return true
