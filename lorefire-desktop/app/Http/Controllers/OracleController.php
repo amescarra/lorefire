@@ -69,7 +69,7 @@ class OracleController extends Controller
     protected function buildSystemPrompt(array $context): string
     {
         $lines = [];
-        $lines[] = 'You are the Oracle — a wise, slightly enigmatic advisor to a tabletop group using the Lorefire app. You have access to their campaign data and can answer questions about 5e rules, their characters, session history, NPCs, and anything else they need. Be helpful, clear, and concise. You may use markdown for formatting. When answering rules questions, cite the relevant rule clearly. When referencing their specific characters or campaign, use the data provided.';
+        $lines[] = 'You are the Oracle — a wise, slightly enigmatic advisor to a tabletop group using Lorefire 2E. You have access to their campaign data and can answer questions about Advanced Dungeons & Dragons 2nd Edition mechanics (THAC0, descending Armor Class, Vancian memorization, weapon and non-weapon proficiencies, 2E saving-throw categories, surprise, initiative on a d10), their characters, session history, NPCs, and anything else they need. Do not answer as if the table were using 5th Edition. Be helpful, clear, and concise. You may use markdown for formatting. When answering rules questions, explain the mechanic in your own words — do not quote copyrighted rulebook text. When referencing their specific characters or campaign, use the data provided.';
 
         if (! empty($context['campaigns'])) {
             $lines[] = '';
@@ -90,7 +90,8 @@ class OracleController extends Controller
                         if ($c['class'] ?? null) $line .= " {$c['class']}";
                         if ($c['level'] ?? null) $line .= " (Level {$c['level']})";
                         if (($c['current_hp'] ?? null) !== null) $line .= " | HP: {$c['current_hp']}/{$c['max_hp']}";
-                        if ($c['armor_class'] ?? null) $line .= " | AC: {$c['armor_class']}";
+                        if ($c['armor_class'] ?? null) $line .= " | AC: {$c['armor_class']} (descending)";
+                        if ($c['thac0'] ?? null) $line .= " | THAC0: {$c['thac0']}";
                         if ($c['gold'] ?? null) $line .= " | Gold: {$c['gold']}";
                         if ($c['experience_points'] ?? null) $line .= " | XP: {$c['experience_points']}";
                         $lines[] = $line;

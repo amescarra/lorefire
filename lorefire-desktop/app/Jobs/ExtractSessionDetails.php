@@ -187,13 +187,13 @@ class ExtractSessionDetails implements ShouldQueue
 
     protected function systemPrompt(): string
     {
-        return 'You are an expert D&D session analyst. Your job is to extract structured game-state changes from a session transcript: changes to player character stats (HP, gold, XP, spell slots, death saves) and any NPCs who appeared or were mentioned. Be conservative — only update values when the transcript clearly confirms a change. Do not guess or infer from context alone.';
+        return 'You are an expert AD&D 2nd Edition session analyst. Extract structured game-state changes from a session transcript: changes to player character stats (HP, gold, XP, memorized spells cast) and any NPCs who appeared or were mentioned. This table uses THAC0, descending Armor Class, and Vancian memorization — not 5th Edition spell slots, proficiency bonus, or death saves. Be conservative — only update values when the transcript clearly confirms a change. Do not guess or infer from context alone.';
     }
 
     protected function userPrompt(string $context, string $transcript): string
     {
         return <<<PROMPT
-Here is the context for this D&D session:
+Here is the context for this AD&D 2nd Edition session:
 
 {$context}
 
@@ -206,7 +206,7 @@ Here is the session transcript:
 Analyze the transcript and extract:
 
 1. **character_updates**: Changes to player character stats that clearly happened during this session.
-   - Only include characters that had actual changes (HP damage/healing, gold gained/spent, XP awarded, spell slots used/recovered, death save changes).
+   - Only include characters that had actual changes (HP damage/healing including scores below 0, gold gained/spent, XP awarded, memorized spells cast).
    - Use the character names exactly as listed in the context.
 
 2. **npcs**: NPCs who appeared, were mentioned, or whose status changed.
@@ -223,12 +223,9 @@ Respond ONLY with a JSON object wrapped in <extraction> tags, no other text:
       "name": "Character Name",
       "current_hp": 14,
       "max_hp": null,
-      "temp_hp": null,
       "gold": null,
       "experience_points": null,
       "spell_slots_used": null,
-      "death_save_successes": null,
-      "death_save_failures": null,
       "notes": "optional short note about what happened"
     }
   ],
@@ -323,8 +320,7 @@ PROMPT;
             if (! $character) continue;
 
             $fields = [];
-            foreach (['current_hp', 'max_hp', 'temp_hp', 'gold', 'experience_points',
-                      'spell_slots_used', 'death_save_successes', 'death_save_failures'] as $field) {
+            foreach (['current_hp', 'max_hp', 'gold', 'experience_points', 'spell_slots_used'] as $field) {
                 if (isset($update[$field]) && $update[$field] !== null) {
                     $fields[$field] = $update[$field];
                 }

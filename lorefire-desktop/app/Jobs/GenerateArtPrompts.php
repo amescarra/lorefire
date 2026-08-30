@@ -127,7 +127,7 @@ class GenerateArtPrompts implements ShouldQueue
             : '';
 
         $prompt = <<<PROMPT
-You are an art director for a D&D campaign chronicle. Your job is to identify key visual scenes from a session and write detailed image-generation prompts for each one.
+You are an art director for an AD&D 2nd Edition campaign chronicle. Your job is to identify key visual scenes from a session and write detailed image-generation prompts for each one.
 
 {$charContext}
 

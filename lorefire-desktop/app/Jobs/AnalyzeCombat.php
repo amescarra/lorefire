@@ -18,14 +18,16 @@ class AnalyzeCombat implements ShouldQueue
     protected array $combatStartKeywords = [
         'roll initiative', 'roll for initiative', 'initiative order',
         'combat begins', 'battle starts', 'initiative',
-        'you enter combat', 'roll perception', 'surprised',
+        'you enter combat', 'surprised', 'surprise round',
+        'thac0', 'roll for surprise',
     ];
 
-    // Keywords that signal combat actions
+    // Keywords that signal combat actions (2E vocabulary)
     protected array $actionKeywords = [
         'attacks', 'casts', 'uses', 'misses', 'hits', 'crits', 'critical hit',
-        'deals', 'damage', 'heals', 'healing', 'bonus action', 'action',
-        'saves', 'fails', 'succeeds', 'rolls', 'advantage', 'disadvantage',
+        'deals', 'damage', 'heals', 'healing', 'melee', 'missile',
+        'saves', 'fails', 'succeeds', 'rolls', 'thac0', 'weapon speed',
+        'segments', 'parry', 'retreat', 'charge',
     ];
 
     public function __construct(public GameSession $session) {}

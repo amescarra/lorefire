@@ -44,7 +44,7 @@ class CharacterSpellSlotsController extends Controller
 
         $character->update(['spell_slots_used' => $used]);
 
-        return back()->with('success', "Spell slot updated.");
+        return back()->with('success', 'Memorization capacity updated.');
     }
 
     /**

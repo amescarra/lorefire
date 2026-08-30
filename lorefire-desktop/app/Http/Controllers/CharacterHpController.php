@@ -15,24 +15,22 @@ class CharacterHpController extends Controller
     /**
      * PATCH /characters/{character}/hp
      *
-     * Accepts { current_hp, temp_hp } and persists them.
+     * Accepts { current_hp } and persists it. Current HP may drop to −10 (death).
      * Returns JSON so the client can confirm the saved values.
      */
     public function update(Request $request, Character $character): JsonResponse
     {
         $validated = $request->validate([
-            'current_hp' => ['required', 'integer', 'min:0'],
-            'temp_hp'    => ['nullable', 'integer', 'min:0'],
+            'current_hp' => ['required', 'integer', 'min:'.\App\Support\Adnd2e::DEATH_THRESHOLD],
         ]);
 
         $character->update([
             'current_hp' => $validated['current_hp'],
-            'temp_hp'    => $validated['temp_hp'] ?? 0,
         ]);
 
         return response()->json([
             'current_hp' => $character->current_hp,
-            'temp_hp'    => $character->temp_hp,
+            'vitality' => $character->vitalityState(),
         ]);
     }
 }

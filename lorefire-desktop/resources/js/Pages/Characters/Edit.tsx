@@ -6,7 +6,12 @@ import { Input, Textarea, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { ClassFeatures } from '@/Components/ClassFeatures'
 import { SpellsTab } from '@/Components/SpellsTab'
-import { Campaign, Character, CharacterSpell } from '@/types'
+import { Campaign, Character } from '@/types'
+import {
+  ALIGNMENTS, CLASSES, NONWEAPON_PROFICIENCY_SUGGESTIONS, PRIEST_SPHERES, RACES,
+  SAVE_CATEGORIES, SPECIALIST_SCHOOLS, WEAPON_PROFICIENCY_SUGGESTIONS,
+  formatSigned, hitDie, isCaster, primaryAdjustment, savingThrows, thac0,
+} from '@/lib/adnd2e'
 
 interface Props {
   campaign: Campaign | null
@@ -14,104 +19,6 @@ interface Props {
   campaigns?: Campaign[]
   imageGenProvider: string | null
 }
-
-const ALIGNMENTS = ['Lawful Good','Neutral Good','Chaotic Good','Lawful Neutral','True Neutral','Chaotic Neutral','Lawful Evil','Neutral Evil','Chaotic Evil']
-const CLASSES = ['Artificer','Barbarian','Bard','Cleric','Druid','Fighter','Monk','Paladin','Ranger','Rogue','Sorcerer','Warlock','Wizard']
-const RACES = ['Dragonborn','Dwarf','Elf','Gnome','Half-Elf','Halfling','Half-Orc','Human','Tiefling','Other']
-
-// PHB spell slot table keyed by character level.
-// Full casters: Bard, Cleric, Druid, Sorcerer, Wizard
-// Half casters (round up): Paladin, Ranger  → divide caster level by 2
-// Artificer (round up): half caster like Paladin/Ranger
-// Warlock: pact slots — only one "level" pool (listed under slot level 1 here, overridden per level)
-// Non-casters/martial with no slots: Barbarian, Fighter, Monk, Rogue → {}
-const FULL_CASTER_SLOTS: Record<number, Record<number, number>> = {
-  1:  { 1: 2 },
-  2:  { 1: 3 },
-  3:  { 1: 4, 2: 2 },
-  4:  { 1: 4, 2: 3 },
-  5:  { 1: 4, 2: 3, 3: 2 },
-  6:  { 1: 4, 2: 3, 3: 3 },
-  7:  { 1: 4, 2: 3, 3: 3, 4: 1 },
-  8:  { 1: 4, 2: 3, 3: 3, 4: 2 },
-  9:  { 1: 4, 2: 3, 3: 3, 4: 3, 5: 1 },
-  10: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2 },
-  11: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1 },
-  12: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1 },
-  13: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1 },
-  14: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1 },
-  15: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1 },
-  16: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1 },
-  17: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1, 9: 1 },
-  18: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 1, 7: 1, 8: 1, 9: 1 },
-  19: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 1, 8: 1, 9: 1 },
-  20: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2, 8: 1, 9: 1 },
-}
-
-// Half casters use caster level = ceil(class level / 2); slot table same shape as full but shifted
-const HALF_CASTER_SLOTS: Record<number, Record<number, number>> = {
-  1:  {},  // no slots at caster level 1 for half casters
-  2:  { 1: 2 },
-  3:  { 1: 3 },
-  4:  { 1: 3 },
-  5:  { 1: 4, 2: 2 },
-  6:  { 1: 4, 2: 2 },
-  7:  { 1: 4, 2: 3 },
-  8:  { 1: 4, 2: 3 },
-  9:  { 1: 4, 2: 3, 3: 2 },
-  10: { 1: 4, 2: 3, 3: 2 },
-}
-
-// Warlock pact slots: short-rest pool, all slots at a single level
-const WARLOCK_SLOTS: Record<number, Record<number, number>> = {
-  1:  { 1: 1 },
-  2:  { 1: 2 },
-  3:  { 2: 2 },
-  4:  { 2: 2 },
-  5:  { 3: 2 },
-  6:  { 3: 2 },
-  7:  { 4: 2 },
-  8:  { 4: 2 },
-  9:  { 5: 2 },
-  10: { 5: 2 },
-  11: { 5: 3 },
-  12: { 5: 3 },
-  13: { 5: 3 },
-  14: { 5: 3 },
-  15: { 5: 3 },
-  16: { 5: 3 },
-  17: { 5: 4 },
-  18: { 5: 4 },
-  19: { 5: 4 },
-  20: { 5: 4 },
-}
-
-const FULL_CASTERS = new Set(['Bard', 'Cleric', 'Druid', 'Sorcerer', 'Wizard'])
-const HALF_CASTERS = new Set(['Paladin', 'Ranger', 'Artificer'])
-
-function computeDefaultSlots(characterClass: string, level: number): Record<string, number> {
-  if (FULL_CASTERS.has(characterClass)) {
-    const row = FULL_CASTER_SLOTS[level] ?? {}
-    return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v]))
-  }
-  if (HALF_CASTERS.has(characterClass)) {
-    const casterLevel = Math.ceil(level / 2)
-    const row = HALF_CASTER_SLOTS[Math.min(casterLevel, 10)] ?? {}
-    return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v]))
-  }
-  if (characterClass === 'Warlock') {
-    const row = WARLOCK_SLOTS[level] ?? {}
-    return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v]))
-  }
-  return {}
-}
-
-const SKILLS_LIST = [
-  'acrobatics','animal_handling','arcana','athletics','deception','history',
-  'insight','intimidation','investigation','medicine','nature','perception',
-  'performance','persuasion','religion','sleight_of_hand','stealth','survival',
-]
-const ABILITIES = ['strength','dexterity','constitution','intelligence','wisdom','charisma']
 
 export default function Edit({ campaign, character, campaigns, imageGenProvider }: Props) {
   const standalone = campaign === null
@@ -136,16 +43,15 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     charisma: character.charisma,
     max_hp: character.max_hp,
     current_hp: character.current_hp,
-    temp_hp: character.temp_hp,
     armor_class: character.armor_class,
-    initiative_bonus: character.initiative_bonus,
+    thac0: character.thac0 ?? thac0(character.class, character.level),
     speed: character.speed,
-    proficiency_bonus: character.proficiency_bonus,
-    death_save_successes: character.death_save_successes,
-    death_save_failures: character.death_save_failures,
-    saving_throw_proficiencies: character.saving_throw_proficiencies ?? [],
-    skill_proficiencies: character.skill_proficiencies ?? [],
-    skill_expertises: character.skill_expertises ?? [],
+    hit_die: character.hit_die ?? hitDie(character.class),
+    exceptional_strength: character.exceptional_strength ?? '',
+    saving_throws: (character.saving_throws ?? savingThrows(character.class, character.level)) as Record<string, number>,
+    weapon_proficiencies: character.weapon_proficiencies ?? [],
+    nonweapon_proficiencies: character.nonweapon_proficiencies ?? [],
+    priest_spheres: (character.priest_spheres ?? { major: [], minor: [] }) as { major: string[]; minor: string[] },
     copper: character.copper,
     silver: character.silver,
     electrum: character.electrum,
@@ -159,7 +65,6 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     flaws: character.flaws ?? '',
     backstory: character.backstory ?? '',
     appearance_description: character.appearance_description ?? '',
-    dnd_beyond_url: character.dnd_beyond_url ?? '',
     campaign_id: character.campaign_id?.toString() ?? '',
     class_features: (character.class_features ?? {}) as Record<string, unknown>,
     portrait: null as File | null,
@@ -172,25 +77,27 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     campaign_id: d.campaign_id === '' ? null : d.campaign_id,
   }))
 
-  // Track whether the user has manually customised spell slots so auto-compute doesn't clobber edits
-  const [slotsCustomised, setSlotsCustomised] = useState(false)
-
-  // Auto-populate spell_slots when class or level changes (unless user already customised them)
   useEffect(() => {
-    if (slotsCustomised) return
-    const computed = computeDefaultSlots(data.class, data.level)
-    setData('spell_slots', computed)
+    setData('thac0', thac0(data.class, data.level))
+    setData('hit_die', hitDie(data.class))
+    setData('saving_throws', savingThrows(data.class, data.level))
   }, [data.class, data.level])
 
   const handleSlotChange = (slotLevel: number, value: number) => {
-    setSlotsCustomised(true)
     setData('spell_slots', { ...data.spell_slots, [slotLevel]: value })
   }
 
-  const resetSlotsToDefault = () => {
-    setSlotsCustomised(false)
-    const computed = computeDefaultSlots(data.class, data.level)
-    setData('spell_slots', computed)
+  const toggleList = (list: 'weapon_proficiencies' | 'nonweapon_proficiencies', value: string) => {
+    const current = data[list] as string[]
+    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value]
+    setData(list, next)
+  }
+
+  const toggleSphere = (band: 'major' | 'minor', sphere: string) => {
+    const spheres = data.priest_spheres
+    const current = spheres[band] ?? []
+    const next = current.includes(sphere) ? current.filter(s => s !== sphere) : [...current, sphere]
+    setData('priest_spheres', { ...spheres, [band]: next })
   }
 
   const portraitInputRef = useRef<HTMLInputElement>(null)
@@ -271,13 +178,8 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
         { label: 'Edit' },
       ]
 
-  const mod = (v: number) => { const m = Math.floor((v - 10) / 2); return m >= 0 ? `+${m}` : `${m}` }
-
-  const toggleProficiency = (list: 'saving_throw_proficiencies' | 'skill_proficiencies' | 'skill_expertises', value: string) => {
-    const current = data[list] as string[]
-    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value]
-    setData(list, next)
-  }
+  const adj = (ability: string, score: number) =>
+    formatSigned(primaryAdjustment(ability, score, data.exceptional_strength || null, data.class))
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -415,16 +317,21 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
               <option value="">Select…</option>
               {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
             </Select>
-            <Input label="Subclass" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional" />
+            {data.class === 'Mage' ? (
+              <Select label="Kit / specialist" value={data.subclass} onChange={e => setData('subclass', e.target.value)}>
+                <option value="">Generalist mage</option>
+                {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            ) : (
+              <Input label="Kit" value={data.subclass} onChange={e => setData('subclass', e.target.value)} placeholder="Optional kit" />
+            )}
             <Input label="Level" type="number" min={1} max={20} value={data.level} onChange={e => setData('level', parseInt(e.target.value))} error={errors.level} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Background" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Soldier, Sage, Outlander…" />
+            <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron…" />
             <Input label="Experience Points" type="number" min={0} value={data.experience_points} onChange={e => setData('experience_points', parseInt(e.target.value) || 0)} />
           </div>
-
-          <Input label="D&D Beyond URL" value={data.dnd_beyond_url} onChange={e => setData('dnd_beyond_url', e.target.value)} placeholder="https://dnd.wizards.com/characters/…" />
 
           {/* Ability Scores */}
           <RuneDivider label="Ability Scores" />
@@ -442,89 +349,125 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
                   onChange={e => setData(key, parseInt(e.target.value) || 10)}
                   className="w-full text-center bg-[var(--color-deep)] border border-[var(--color-border)] rounded py-2 text-[var(--color-text-white)] font-heading text-lg focus:outline-none focus:border-[var(--color-rune)]"
                 />
-                <span className="text-xs text-[var(--color-rune)] font-mono">{mod(data[key] as number)}</span>
+                <span className="text-xs text-[var(--color-rune)] font-mono">{adj(String(key), data[key] as number)}</span>
               </div>
             ))}
           </div>
 
-          {/* Saving Throw Proficiencies */}
+          {(data.class === 'Fighter' || data.class === 'Paladin' || data.class === 'Ranger') && data.strength === 18 && (
+            <Input
+              label="Exceptional Strength (18/xx)"
+              value={data.exceptional_strength}
+              onChange={e => setData('exceptional_strength', e.target.value)}
+              placeholder="01–00"
+            />
+          )}
+
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Saving Throw Proficiencies</p>
+            <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Saving Throws (roll ≥ target)</p>
+            <div className="grid grid-cols-5 gap-2">
+              {SAVE_CATEGORIES.map(cat => (
+                <Input
+                  key={cat.key}
+                  label={cat.label.split(' ')[0]}
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={data.saving_throws[cat.key] ?? 20}
+                  onChange={e => setData('saving_throws', { ...data.saving_throws, [cat.key]: parseInt(e.target.value) || 20 })}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Weapon Proficiencies</p>
             <div className="flex flex-wrap gap-2">
-              {ABILITIES.map(ab => {
-                const active = (data.saving_throw_proficiencies as string[]).includes(ab)
+              {WEAPON_PROFICIENCY_SUGGESTIONS.map(w => {
+                const active = (data.weapon_proficiencies as string[]).includes(w)
                 return (
                   <button
                     type="button"
-                    key={ab}
-                    onClick={() => toggleProficiency('saving_throw_proficiencies', ab)}
-                    className={`px-3 py-1 rounded text-xs uppercase tracking-widest border transition-colors ${
+                    key={w}
+                    onClick={() => toggleList('weapon_proficiencies', w)}
+                    className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors ${
                       active
                         ? 'border-[var(--color-rune)] text-[var(--color-rune-bright)] bg-[var(--color-rune)]/10'
                         : 'border-[var(--color-border)] text-[var(--color-text-dim)]'
                     }`}
                   >
-                    {ab.slice(0, 3)}
+                    {w}
                   </button>
                 )
               })}
             </div>
           </div>
 
-          {/* Skill Proficiencies */}
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Skill Proficiencies</p>
+            <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Non-weapon Proficiencies</p>
             <div className="flex flex-wrap gap-2">
-              {SKILLS_LIST.map(skill => {
-                const proficient = (data.skill_proficiencies as string[]).includes(skill)
-                const expert = (data.skill_expertises as string[]).includes(skill)
+              {NONWEAPON_PROFICIENCY_SUGGESTIONS.map(w => {
+                const active = (data.nonweapon_proficiencies as string[]).includes(w)
                 return (
-                  <div key={skill} className="flex flex-col items-center gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleProficiency('skill_proficiencies', skill)}
-                      className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors ${
-                        proficient
-                          ? 'border-[var(--color-rune)] text-[var(--color-rune-bright)] bg-[var(--color-rune)]/10'
-                          : 'border-[var(--color-border)] text-[var(--color-text-dim)]'
-                      }`}
-                    >
-                      {skill.replace(/_/g, ' ')}
-                    </button>
-                    {proficient && (
-                      <button
-                        type="button"
-                        onClick={() => toggleProficiency('skill_expertises', skill)}
-                        className={`text-[9px] uppercase tracking-widest ${expert ? 'text-[var(--color-rune-bright)]' : 'text-[var(--color-text-dim)]'}`}
-                      >
-                        {expert ? 'Expertise' : '+ expertise'}
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    key={w}
+                    onClick={() => toggleList('nonweapon_proficiencies', w)}
+                    className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider border transition-colors ${
+                      active
+                        ? 'border-[var(--color-rune)] text-[var(--color-rune-bright)] bg-[var(--color-rune)]/10'
+                        : 'border-[var(--color-border)] text-[var(--color-text-dim)]'
+                    }`}
+                  >
+                    {w}
+                  </button>
                 )
               })}
             </div>
           </div>
 
-          {/* Combat */}
+          {(data.class === 'Cleric' || data.class === 'Druid' || data.class === 'Paladin') && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Priest Spheres</p>
+              <p className="text-[10px] text-[var(--color-text-dim)] mb-1">Major</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {PRIEST_SPHERES.map(s => {
+                  const active = (data.priest_spheres.major ?? []).includes(s)
+                  return (
+                    <button type="button" key={`maj-${s}`} onClick={() => toggleSphere('major', s)}
+                      className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider border ${active ? 'border-[var(--color-rune)] text-[var(--color-rune-bright)] bg-[var(--color-rune)]/10' : 'border-[var(--color-border)] text-[var(--color-text-dim)]'}`}>
+                      {s}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[10px] text-[var(--color-text-dim)] mb-1">Minor</p>
+              <div className="flex flex-wrap gap-2">
+                {PRIEST_SPHERES.map(s => {
+                  const active = (data.priest_spheres.minor ?? []).includes(s)
+                  return (
+                    <button type="button" key={`min-${s}`} onClick={() => toggleSphere('minor', s)}
+                      className={`px-2 py-1 rounded text-[10px] uppercase tracking-wider border ${active ? 'border-[var(--color-rune)] text-[var(--color-rune-bright)] bg-[var(--color-rune)]/10' : 'border-[var(--color-border)] text-[var(--color-text-dim)]'}`}>
+                      {s}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <RuneDivider label="Combat & HP" />
 
           <div className="grid grid-cols-3 gap-4">
             <Input label="Max HP" type="number" min={1} value={data.max_hp} onChange={e => setData('max_hp', parseInt(e.target.value) || 1)} />
-            <Input label="Current HP" type="number" min={0} value={data.current_hp} onChange={e => setData('current_hp', parseInt(e.target.value) || 0)} />
-            <Input label="Temp HP" type="number" min={0} value={data.temp_hp} onChange={e => setData('temp_hp', parseInt(e.target.value) || 0)} />
+            <Input label="Current HP" type="number" value={data.current_hp} onChange={e => setData('current_hp', parseInt(e.target.value) || 0)} hint="0 unconscious · −1 to −9 dying · −10 dead" />
+            <Input label="Hit Die" value={data.hit_die} onChange={e => setData('hit_die', e.target.value)} />
           </div>
 
-          <div className="grid grid-cols-4 gap-4">
-            <Input label="Armor Class" type="number" min={0} value={data.armor_class} onChange={e => setData('armor_class', parseInt(e.target.value) || 0)} />
-            <Input label="Initiative Bonus" type="number" value={data.initiative_bonus} onChange={e => setData('initiative_bonus', parseInt(e.target.value) || 0)} />
-            <Input label="Speed (ft)" type="number" min={0} value={data.speed} onChange={e => setData('speed', parseInt(e.target.value) || 30)} />
-            <Input label="Prof. Bonus" type="number" min={2} max={6} value={data.proficiency_bonus} onChange={e => setData('proficiency_bonus', parseInt(e.target.value) || 2)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Death Save Successes" type="number" min={0} max={3} value={data.death_save_successes} onChange={e => setData('death_save_successes', parseInt(e.target.value) || 0)} />
-            <Input label="Death Save Failures" type="number" min={0} max={3} value={data.death_save_failures} onChange={e => setData('death_save_failures', parseInt(e.target.value) || 0)} />
+          <div className="grid grid-cols-3 gap-4">
+            <Input label="Armor Class" type="number" value={data.armor_class} onChange={e => setData('armor_class', parseInt(e.target.value) || 0)} hint="Descending" />
+            <Input label="THAC0" type="number" value={data.thac0} onChange={e => setData('thac0', parseInt(e.target.value) || 20)} />
+            <Input label="Movement" type="number" min={0} value={data.speed} onChange={e => setData('speed', parseInt(e.target.value) || 12)} />
           </div>
 
           {/* Currency */}
@@ -545,68 +488,42 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             <option value="">None / Not a caster</option>
             <option value="intelligence">Intelligence</option>
             <option value="wisdom">Wisdom</option>
-            <option value="charisma">Charisma</option>
           </Select>
 
-          {/* Spell Slot Maximums */}
-          {(() => {
-            const maxLevel = (() => {
-              if (FULL_CASTERS.has(data.class)) return Math.min(Math.ceil(data.level / 2) + 4, 9)
-              if (HALF_CASTERS.has(data.class)) return Math.min(Math.ceil(data.level / 4) + 1, 5)
-              if (data.class === 'Warlock') return Math.min(Math.ceil(data.level / 2) + 1, 5)
-              return 0
-            })()
-            if (maxLevel === 0) return null
-            const slotLevels = Array.from({ length: 9 }, (_, i) => i + 1)
-            return (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">Spell Slot Maximums</p>
-                  <button
-                    type="button"
-                    onClick={resetSlotsToDefault}
-                    className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] hover:text-[var(--color-rune)] transition-colors"
-                  >
-                    Reset to PHB default
-                  </button>
-                </div>
-                <div className="grid grid-cols-9 gap-2">
-                  {slotLevels.map(lvl => (
-                    <div key={lvl} className="flex flex-col items-center gap-1">
-                      <label className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">
-                        {lvl === 1 ? '1st' : lvl === 2 ? '2nd' : lvl === 3 ? '3rd' : `${lvl}th`}
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={9}
-                        value={(data.spell_slots as Record<string, number>)[lvl] ?? 0}
-                        onChange={e => handleSlotChange(lvl, parseInt(e.target.value) || 0)}
-                        className="w-full text-center bg-[var(--color-deep)] border border-[var(--color-border)] rounded py-1.5 text-[var(--color-text-white)] font-heading text-sm focus:outline-none focus:border-[var(--color-rune)]"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {data.class === 'Warlock' && (
-                  <p className="text-[10px] text-[var(--color-text-dim)] mt-1">Warlock pact slots recover on a short rest. Enter the slot level and count above.</p>
-                )}
+          {isCaster(data.class, data.level) && (
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-2">Memorization capacity (spells per level)</p>
+              <div className="grid grid-cols-9 gap-2">
+                {Array.from({ length: 9 }, (_, i) => i + 1).map(lvl => (
+                  <div key={lvl} className="flex flex-col items-center gap-1">
+                    <label className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">
+                      {lvl === 1 ? '1st' : lvl === 2 ? '2nd' : lvl === 3 ? '3rd' : `${lvl}th`}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={12}
+                      value={(data.spell_slots as Record<string, number>)[lvl] ?? 0}
+                      onChange={e => handleSlotChange(lvl, parseInt(e.target.value) || 0)}
+                      className="w-full text-center bg-[var(--color-deep)] border border-[var(--color-border)] rounded py-1.5 text-[var(--color-text-white)] font-heading text-sm focus:outline-none focus:border-[var(--color-rune)]"
+                    />
+                  </div>
+                ))}
               </div>
-            )
-          })()}
+              <p className="text-[10px] text-[var(--color-text-dim)] mt-1">Each entry is one specific memorized spell. Overnight rest rememorizes what was cast.</p>
+            </div>
+          )}
 
-          {/* Class-specific features */}
           <ClassFeatures
             characterClass={data.class}
             level={data.level}
             charisma={data.charisma}
             wisdom={data.wisdom}
-            proficiencyBonus={data.proficiency_bonus}
             value={data.class_features as Record<string, unknown>}
             onChange={cf => setData('class_features', cf)}
           />
 
-          {/* Spell list management */}
-          <RuneDivider label="Spell List" />
+          <RuneDivider label="Spell Repertoire" />
 
           <SpellsTab
             characterId={character.id}

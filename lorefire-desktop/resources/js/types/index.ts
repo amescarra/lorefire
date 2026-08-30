@@ -41,16 +41,15 @@ export interface Character {
   charisma: number
   max_hp: number
   current_hp: number
-  temp_hp: number
   armor_class: number
-  initiative_bonus: number
+  thac0: number
   speed: number
-  proficiency_bonus: number
-  death_save_successes: number
-  death_save_failures: number
-  saving_throw_proficiencies: string[] | null
-  skill_proficiencies: string[] | null
-  skill_expertises: string[] | null
+  hit_die: string | null
+  exceptional_strength: string | null
+  saving_throws: Record<string, number> | null
+  weapon_proficiencies: string[] | null
+  nonweapon_proficiencies: string[] | null
+  priest_spheres: { major?: string[]; minor?: string[] } | null
   copper: number
   silver: number
   electrum: number
@@ -68,7 +67,6 @@ export interface Character {
   portrait_path: string | null
   portrait_generation_status: 'idle' | 'generating' | 'done' | 'failed'
   portrait_style: 'lifelike' | 'renaissance' | 'comic'
-  dnd_beyond_url: string | null
   class_features: Record<string, unknown> | null
   campaign?: Campaign
   spells?: CharacterSpell[]
@@ -94,6 +92,7 @@ export interface CharacterSpell {
   ritual: boolean
   description: string | null
   is_prepared: boolean
+  is_cast: boolean
 }
 
 export interface InventoryItem {
@@ -141,7 +140,6 @@ export interface CharacterCondition {
   id: number
   character_id: number
   condition: string
-  exhaustion_level: number
   notes: string | null
 }
 

@@ -39,7 +39,7 @@ return [
     /**
      * The description of your application.
      */
-    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'A local-first chronicle for 5e tabletop campaigns'),
+    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'A local-first chronicle for AD&D 2nd Edition campaigns'),
 
     /**
      * The Website of your application.

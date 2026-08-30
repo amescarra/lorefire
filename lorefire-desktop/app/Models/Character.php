@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Support\Adnd2e;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Character extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'campaign_id',
         'name',
@@ -21,6 +25,7 @@ class Character extends Model
         'alignment',
         'experience_points',
         'strength',
+        'exceptional_strength',
         'dexterity',
         'constitution',
         'intelligence',
@@ -28,16 +33,14 @@ class Character extends Model
         'charisma',
         'max_hp',
         'current_hp',
-        'temp_hp',
         'armor_class',
-        'initiative_bonus',
+        'thac0',
         'speed',
-        'proficiency_bonus',
-        'death_save_successes',
-        'death_save_failures',
-        'saving_throw_proficiencies',
-        'skill_proficiencies',
-        'skill_expertises',
+        'hit_die',
+        'saving_throws',
+        'weapon_proficiencies',
+        'nonweapon_proficiencies',
+        'priest_spheres',
         'copper',
         'silver',
         'electrum',
@@ -55,19 +58,19 @@ class Character extends Model
         'portrait_path',
         'portrait_generation_status',
         'portrait_style',
-        'dnd_beyond_url',
         'imported_data',
         'class_features',
     ];
 
     protected $casts = [
-        'saving_throw_proficiencies' => 'array',
-        'skill_proficiencies' => 'array',
-        'skill_expertises' => 'array',
+        'saving_throws' => 'array',
+        'weapon_proficiencies' => 'array',
+        'nonweapon_proficiencies' => 'array',
+        'priest_spheres' => 'array',
         'spell_slots' => 'array',
         'spell_slots_used' => 'array',
-        'imported_data'    => 'array',
-        'class_features'   => 'array',
+        'imported_data' => 'array',
+        'class_features' => 'array',
     ];
 
     public function campaign(): BelongsTo
@@ -105,16 +108,33 @@ class Character extends Model
         return $this->hasMany(SpeakerProfile::class);
     }
 
+    /**
+     * Primary combat-facing adjustment for an ability (2E tables).
+     */
     public function getModifier(string $ability): int
     {
-        return (int) floor(($this->{$ability} - 10) / 2);
+        $exceptional = $ability === 'strength' ? $this->exceptional_strength : null;
+
+        return Adnd2e::primaryAdjustment($ability, (int) $this->{$ability}, $exceptional, (string) $this->class);
     }
 
-    public function getPassivePerception(): int
+    public function resolvedThac0(): int
     {
-        $wisdomMod = $this->getModifier('wisdom');
-        $prof = in_array('perception', $this->skill_proficiencies ?? []) ? $this->proficiency_bonus : 0;
-        $expert = in_array('perception', $this->skill_expertises ?? []) ? $this->proficiency_bonus : 0;
-        return 10 + $wisdomMod + $prof + $expert;
+        return $this->thac0 ?? Adnd2e::thac0((string) $this->class, (int) $this->level);
+    }
+
+    public function resolvedSavingThrows(): array
+    {
+        return $this->saving_throws ?: Adnd2e::savingThrows((string) $this->class, (int) $this->level);
+    }
+
+    public function vitalityState(): string
+    {
+        return Adnd2e::vitalityState((int) $this->current_hp);
+    }
+
+    public function numberNeededToHit(int $targetAc): int
+    {
+        return Adnd2e::numberNeededToHit($this->resolvedThac0(), $targetAc);
     }
 }

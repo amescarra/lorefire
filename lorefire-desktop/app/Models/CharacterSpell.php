@@ -20,12 +20,14 @@ class CharacterSpell extends Model
         'ritual',
         'description',
         'is_prepared',
+        'is_cast',
     ];
 
     protected $casts = [
         'concentration' => 'boolean',
         'ritual' => 'boolean',
         'is_prepared' => 'boolean',
+        'is_cast' => 'boolean',
     ];
 
     public function character(): BelongsTo

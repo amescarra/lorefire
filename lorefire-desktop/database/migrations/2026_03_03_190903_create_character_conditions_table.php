@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::create('character_conditions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('character_id')->constrained()->cascadeOnDelete();
-            $table->string('condition'); // blinded, charmed, exhaustion, etc.
-            $table->unsignedTinyInteger('exhaustion_level')->default(0);
+            $table->string('condition'); // 2E: held, poisoned, cursed, etc.
             $table->text('notes')->nullable();
             $table->timestamps();
         });

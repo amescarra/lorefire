@@ -1,15 +1,12 @@
-# Lorefire
+# Lorefire 2E
 
 <p align="center">
   <img width="128" height="128" alt="Lorefire" src="lorefire-desktop/public/logo.png" />
 </p>
 
-[![Release](https://github.com/JustinWoodring/lorefire/actions/workflows/release.yml/badge.svg)](https://github.com/JustinWoodring/lorefire/actions/workflows/release.yml)
+> A local-first chronicle for **Advanced Dungeons & Dragons 2nd Edition** campaigns. Record sessions, auto-transcribe with AI, generate bardic summaries, track characters, and build your campaign archive — all on your machine, no cloud required.
 
-<img width="1056" height="800" alt="Screenshot 2026-03-06 at 8 20 58 AM" src="https://github.com/user-attachments/assets/d86597f8-4304-40c7-b542-4c48a4c74f49" />
-
-
-> A local-first chronicle for 5e campaigns. Record sessions, auto-transcribe with AI, generate bardic summaries, track characters, and build your campaign archive — all on your machine, no cloud required.
+This repository is a **separate AD&D 2E edition** of [Lorefire](https://github.com/JustinWoodring/lorefire) by Justin Woodring. It is not a 5e app with a rules toggle.
 
 Built with [NativePHP](https://nativephp.com), [Laravel 12](https://laravel.com), [React](https://react.dev), and [Inertia.js](https://inertiajs.com).
 
@@ -22,22 +19,21 @@ Built with [NativePHP](https://nativephp.com), [Laravel 12](https://laravel.com)
 | | Feature | Description |
 |---|---|---|
 | 📚 | **Campaigns** | Manage multiple campaigns with party portraits and full session history |
-| 🧙 | **Characters** | Full 5e character sheets — HP, spell slots, inventory, conditions, short/long rests |
-| 📥 | **Beyond Import** | Import characters directly from D&D Beyond |
+| 🧙 | **Characters** | AD&D 2E sheets — THAC0, descending AC, 2E saves, weapon/non-weapon proficiencies, Vancian memorization |
 | 🎙️ | **Session Recording** | Record audio at the table and transcribe locally with WhisperX |
 | 📖 | **Bardic Summaries** | AI-generated epic prose recaps of your sessions |
-| ⚔️ | **Encounter Tracker** | Auto-detect encounters from transcripts with round-by-round breakdowns |
+| ⚔️ | **Encounter Tracker** | Auto-detect encounters; resolve attacks with THAC0 vs descending AC and d10 initiative |
 | 🧝 | **NPC Roster** | Track campaign NPCs with attitudes, locations, and AI-generated portraits |
-| 🔮 | **Oracle** | AI chat assistant with full access to your campaign and character data |
+| 🔮 | **Oracle** | AI chat assistant that answers in 2E terms, with full access to your campaign data |
 | 🎨 | **Art Generation** | Generate character portraits and scene art via ComfyUI, z.ai, or DALL-E |
 | 📄 | **PDF Export** | Export campaign or session data to PDF |
-| 🔍 | **Detail Extraction** | LLM-powered extraction of stat changes and NPC appearances from transcripts |
+| 🔍 | **Detail Extraction** | LLM-powered extraction of HP, gold, XP, and NPC appearances from transcripts |
 
 ---
 
 ## 📦 Installation (Release Build)
 
-1. Download the latest `.dmg` from the [Releases](https://github.com/JustinWoodring/lorefire/releases) page
+1. Download the latest `.dmg` from the [Releases](https://github.com/amescarra/lorefire/releases) page
 2. Open the DMG and drag **Lorefire.app** to `/Applications`
 3. Because the app is not notarized, macOS Gatekeeper will block it on first launch. Remove the quarantine flag:
 
@@ -62,7 +58,7 @@ xattr -rd com.apple.quarantine /Applications/Lorefire.app
 
 ```bash
 # Clone the repo
-git clone https://github.com/justinwoodring/lorefire.git
+git clone https://github.com/amescarra/lorefire.git
 cd lorefire/lorefire-desktop
 
 # Install PHP dependencies
@@ -95,7 +91,7 @@ All settings are configured inside the app via **Settings** (after onboarding). 
 
 ### 🎙️ Transcription (WhisperX)
 
-Lorefire bundles [WhisperX](https://github.com/m-bain/whisperX) in a local Python virtual environment. Audio is **never sent off your device**.
+Lorefire 2E bundles [WhisperX](https://github.com/m-bain/whisperX) in a local Python virtual environment. Audio is **never sent off your device**.
 
 On first launch, the app automatically installs the Python venv in the background. You can monitor progress in the onboarding wizard or in Settings.
 
@@ -226,6 +222,7 @@ Lorefire submits generation jobs via the ComfyUI API. The active checkpoint in C
 - **No account required.** Nothing is synced to a server. Your campaigns stay on your machine.
 - **Other hardware:** Tested on Apple Silicon. It may work on Intel Macs, Windows, or Linux, but this is untested. WhisperX in particular will be significantly slower without a dedicated neural engine or GPU.
 - **Transcription is CPU/ANE-bound.** On Apple Silicon, WhisperX uses the `mps` backend. Large audio files may take a few minutes even on `base` model.
+- **Rules text.** This project implements original UI wording and mechanical tables only. It does not include TSR/WotC copyrighted rulebook prose.
 
 ---
 
@@ -233,4 +230,4 @@ Lorefire submits generation jobs via the ComfyUI API. The active checkpoint in C
 
 MIT — see [LICENSE](./LICENSE)
 
-&copy; 2026 Justin Woodring
+Original Lorefire © 2026 Justin Woodring. This 2E fork retains that copyright and the MIT license.

@@ -15,10 +15,10 @@ interface Props {
 }
 
 const SUGGESTED_PROMPTS = [
-  'What are the rules for grappling in 5e?',
+  'How does THAC0 vs descending Armor Class work?',
   'Summarize my most recent session.',
-  'What are the conditions and their effects?',
-  'How does spellcasting concentration work?',
+  'What are the 2E saving-throw categories?',
+  'How does wizard spell memorization work?',
 ]
 
 const CSRF_TOKEN = () =>

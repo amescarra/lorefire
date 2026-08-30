@@ -15,16 +15,17 @@ return new class extends Migration
             $table->id();
             $table->foreignId('character_id')->constrained()->cascadeOnDelete();
             $table->string('name');
-            $table->unsignedTinyInteger('level'); // 0 = cantrip
-            $table->string('school')->nullable(); // evocation, conjuration, etc.
+            $table->unsignedTinyInteger('level'); // 1–9 (2E has no cantrips)
+            $table->string('school')->nullable();
             $table->string('casting_time')->nullable();
             $table->string('range')->nullable();
-            $table->string('components')->nullable(); // V, S, M
+            $table->string('components')->nullable();
             $table->string('duration')->nullable();
             $table->boolean('concentration')->default(false);
             $table->boolean('ritual')->default(false);
             $table->text('description')->nullable();
-            $table->boolean('is_prepared')->default(false);
+            $table->boolean('is_prepared')->default(false); // memorized
+            $table->boolean('is_cast')->default(false);
             $table->timestamps();
         });
     }

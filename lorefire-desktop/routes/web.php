@@ -9,7 +9,6 @@ use App\Http\Controllers\CharacterImageController;
 use App\Http\Controllers\CharacterRestController;
 use App\Http\Controllers\CharacterSpellController;
 use App\Http\Controllers\CharacterSpellSlotsController;
-use App\Http\Controllers\DndBeyondImportController;
 use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\EncounterController;
 use App\Http\Controllers\GameSessionController;
@@ -60,12 +59,8 @@ Route::get('campaigns/{campaign}/party-portrait-status', [CampaignPartyImageCont
 
 // Standalone characters (top-level, no campaign required)
 Route::resource('characters', StandaloneCharacterController::class);
-Route::post('characters/{character}/import-dnd-beyond', [DndBeyondImportController::class, 'importStandalone'])
-    ->name('characters.import-dnd-beyond');
-Route::post('characters/{character}/rest/short', [CharacterRestController::class, 'shortRest'])
-    ->name('characters.rest.short');
-Route::post('characters/{character}/rest/long', [CharacterRestController::class, 'longRest'])
-    ->name('characters.rest.long');
+Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnight'])
+    ->name('characters.rest.overnight');
 Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'update'])
     ->name('characters.spell-slots.update');
 Route::patch('characters/{character}/hp', [CharacterHpController::class, 'update'])
@@ -92,6 +87,8 @@ Route::patch('characters/{character}/spells/{spell}', [CharacterSpellController:
     ->name('characters.spells.update');
 Route::patch('characters/{character}/spells/{spell}/prepare', [CharacterSpellController::class, 'togglePrepared'])
     ->name('characters.spells.prepare');
+Route::patch('characters/{character}/spells/{spell}/cast', [CharacterSpellController::class, 'toggleCast'])
+    ->name('characters.spells.cast');
 Route::delete('characters/{character}/spells/{spell}', [CharacterSpellController::class, 'destroy'])
     ->name('characters.spells.destroy');
 
@@ -125,12 +122,8 @@ Route::prefix('campaigns/{campaign}')->name('campaigns.')->group(function () {
     Route::resource('npcs', NpcController::class);
     Route::resource('sessions', GameSessionController::class);
     Route::get('sessions/{session}/live', [LiveSessionController::class, 'show'])->name('sessions.live');
-    Route::post('characters/{character}/import-dnd-beyond', [DndBeyondImportController::class, 'import'])
-        ->name('characters.import-dnd-beyond');
-    Route::post('characters/{character}/rest/short', [CharacterRestController::class, 'shortRestForCampaign'])
-        ->name('characters.rest.short');
-    Route::post('characters/{character}/rest/long', [CharacterRestController::class, 'longRestForCampaign'])
-        ->name('characters.rest.long');
+    Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnightForCampaign'])
+        ->name('characters.rest.overnight');
     Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'updateForCampaign'])
         ->name('characters.spell-slots.update');
     Route::patch('characters/{character}/class-features', [CharacterClassFeaturesController::class, 'updateForCampaign'])

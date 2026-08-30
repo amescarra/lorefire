@@ -8,6 +8,7 @@ import { Button } from '@/Components/Button'
 import { HpBar } from '@/Components/HpBar'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Campaign, Character, GameSession, Npc } from '@/types'
+import { formatSigned, primaryAdjustment } from '@/lib/adnd2e'
 
 interface Props {
   campaign: Campaign & {
@@ -291,10 +292,8 @@ export default function Show({ campaign, imageGenProvider }: Props) {
 }
 
 function CharacterCard({ character, campaignId }: { character: Character; campaignId: number }) {
-  const mod = (score: number) => {
-    const m = Math.floor((score - 10) / 2)
-    return m >= 0 ? `+${m}` : `${m}`
-  }
+  const mod = (ability: string, score: number) =>
+    formatSigned(primaryAdjustment(ability, score, character.exceptional_strength, character.class))
 
   return (
     <Link href={`/campaigns/${campaignId}/characters/${character.id}`}>
@@ -331,7 +330,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
         <div className="flex gap-3 shrink-0 text-center">
           {(['strength','dexterity','constitution','intelligence','wisdom','charisma'] as const).slice(0,3).map(stat => (
             <div key={stat} className="text-center">
-              <div className="text-xs font-heading text-[var(--color-rune-bright)]">{mod(character[stat])}</div>
+              <div className="text-xs font-heading text-[var(--color-rune-bright)]">{mod(stat, character[stat])}</div>
               <div className="text-[10px] uppercase text-[var(--color-text-dim)]">{stat.slice(0,3)}</div>
             </div>
           ))}
@@ -346,10 +345,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
         {/* AC */}
         <div className="text-center shrink-0">
           <div className="text-sm font-heading text-[var(--color-arcane)]">
-            {character.inventory_items?.some(i => i.category === 'Shield' && i.equipped)
-              ? <>{character.armor_class}<span className="text-xs text-[var(--color-text-dim)]">+2</span></>
-              : character.armor_class
-            }
+            {character.armor_class}
           </div>
           <div className="text-[10px] uppercase text-[var(--color-text-dim)]">AC</div>
         </div>

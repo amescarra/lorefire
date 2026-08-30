@@ -8,6 +8,7 @@ import { Button } from '@/Components/Button'
 import { HpBar } from '@/Components/HpBar'
 import { useRecording } from '@/Contexts/RecordingContext'
 import { Campaign, GameSession, Character, InventoryItem, CharacterSpell } from '@/types'
+import { formatSigned, primaryAdjustment, vitalityState } from '@/lib/adnd2e'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,8 @@ function csrf(): string {
   return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
 }
 
-function mod(score: number): string {
-  const m = Math.floor((score - 10) / 2)
-  return m >= 0 ? `+${m}` : `${m}`
+function mod(score: number, ability = 'dexterity', characterClass = 'Fighter'): string {
+  return formatSigned(primaryAdjustment(ability, score, null, characterClass))
 }
 
 function fmtTime(s: number): string {
@@ -118,10 +118,10 @@ function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; h
               Ask the Oracle
             </p>
             {[
-              'What are the rules for grappling?',
+              'How does THAC0 vs descending AC work?',
               'Summarize the current session.',
-              'How does concentration work?',
-              'What happens when a character drops to 0 HP?',
+              'How does spell memorization work?',
+              'What happens when a character drops below 0 HP?',
             ].map(p => (
               <button
                 key={p}
@@ -201,15 +201,14 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     : `/campaigns/${campaignId}/characters/${character.id}/class-features`
 
   const [tab, setTab]               = useState<'combat' | 'spells' | 'inventory'>('combat')
-  const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null)
+  const [restConfirm, setRestConfirm] = useState(false)
   const [hpInput, setHpInput]       = useState('')
   const [hpMode, setHpMode]         = useState<'damage' | 'heal' | null>(null)
 
   // Local mirror of character HP so we can update without full reload
   const [currentHp, setCurrentHp]   = useState(character.current_hp)
-  const [tempHp, setTempHp]         = useState(character.temp_hp)
 
-  // Local mirror of spell slots used
+  // Local mirror of memorization capacity used
   const [slotsUsed, setSlotsUsed]   = useState<Record<string, number>>(character.spell_slots_used ?? {})
 
   // Local mirror of class features (for lay on hands etc.)
@@ -218,7 +217,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
   const hasSpellSlots = !!(character.spell_slots && Object.keys(character.spell_slots).length > 0)
 
   // Lay on Hands — fall back to level*5 for Paladins who haven't saved keys yet
-  const defaultLayMax = character.class === 'Paladin' ? character.level * 5 : null
+  const defaultLayMax = character.class === 'Paladin' ? character.level * 2 : null
   const layMax     = typeof classFeatures.lay_on_hands_max === 'number'
     ? classFeatures.lay_on_hands_max
     : defaultLayMax
@@ -254,13 +253,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     let next = currentHp
 
     if (mode === 'damage') {
-      let remaining = amount
-      if (tempHp > 0) {
-        const absorbed = Math.min(tempHp, remaining)
-        setTempHp(t => t - absorbed)
-        remaining -= absorbed
-      }
-      next = Math.max(0, next - remaining)
+      next = Math.max(-10, next - amount)
     } else {
       next = Math.min(max, next + amount)
     }
@@ -269,18 +262,17 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     setHpInput('')
     setHpMode(null)
 
-    // Persist via PATCH
     await fetch(`/characters/${character.id}/hp`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-      body: JSON.stringify({ current_hp: next, temp_hp: tempHp }),
+      body: JSON.stringify({ current_hp: next }),
     })
   }
 
-  const doRest = (type: 'short' | 'long') => {
-    router.post(`${restUrl}/${type}`, {}, {
+  const doRest = () => {
+    router.post(`${restUrl}/overnight`, {}, {
       preserveScroll: true,
-      onSuccess: () => setRestConfirm(null),
+      onSuccess: () => setRestConfirm(false),
     })
   }
 
@@ -336,7 +328,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
           <div className="flex items-baseline gap-1">
             <span className="text-xl font-heading font-bold" style={{ color: hpColor }}>{currentHp}</span>
             <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>/ {character.max_hp}</span>
-            {tempHp > 0 && <span className="text-xs" style={{ color: 'var(--color-arcane)' }}>+{tempHp} tmp</span>}
+            {vitalityState(currentHp) !== 'ok' && (
+              <span className="text-[10px] uppercase" style={{ color: 'var(--color-danger)' }}>{vitalityState(currentHp)}</span>
+            )}
           </div>
           <div className="flex gap-1">
             <button
@@ -392,9 +386,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
       {/* ── Quick stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 divide-x text-center" style={{ borderBottom: '1px solid var(--color-border)', divideBorderColor: 'var(--color-border)' }}>
         {[
-          { label: 'AC',   value: character.armor_class },
-          { label: 'Init', value: mod(character.dexterity) },
-          { label: 'Spd',  value: `${character.speed}ft` },
+          { label: 'AC',    value: character.armor_class },
+          { label: 'THAC0', value: character.thac0 },
+          { label: 'MV',    value: character.speed },
         ].map(({ label, value }) => (
           <div key={label} className="py-2 flex flex-col items-center gap-0.5" style={{ borderColor: 'var(--color-border)' }}>
             <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>{label}</span>
@@ -427,17 +421,16 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             {restConfirm ? (
               <div className="flex flex-col gap-2 p-2 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
                 <p className="text-xs text-center" style={{ color: 'var(--color-text-dim)' }}>
-                  {restConfirm === 'short' ? 'Short rest?' : 'Long rest? (restores HP, slots, abilities)'}
+                  Overnight rest? Recovers 1 HP and rememorizes spells.
                 </p>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => setRestConfirm(null)} className="flex-1">Cancel</Button>
-                  <Button size="sm" variant="rune" onClick={() => doRest(restConfirm)} className="flex-1">Confirm</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRestConfirm(false)} className="flex-1">Cancel</Button>
+                  <Button size="sm" variant="rune" onClick={doRest} className="flex-1">Confirm</Button>
                 </div>
               </div>
             ) : (
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setRestConfirm('short')} className="flex-1">Short Rest</Button>
-                <Button size="sm" variant="ghost" onClick={() => setRestConfirm('long')} className="flex-1">Long Rest</Button>
+                <Button size="sm" variant="ghost" onClick={() => setRestConfirm(true)} className="flex-1">Overnight Rest</Button>
               </div>
             )}
 
@@ -454,7 +447,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                 <div key={label} className="flex flex-col items-center py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
                   <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>{label}</span>
                   <span className="text-sm font-bold font-heading" style={{ color: 'var(--color-text-bright)' }}>{character[key]}</span>
-                  <span className="text-[9px] font-mono" style={{ color: 'var(--color-rune)' }}>{mod(character[key] as number)}</span>
+                  <span className="text-[9px] font-mono" style={{ color: 'var(--color-rune)' }}>{mod(character[key] as number, key, character.class)}</span>
                 </div>
               ))}
             </div>
@@ -509,7 +502,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             {hasSpellSlots && character.spell_slots && (
               <div className="flex flex-col gap-2">
                 <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>
-                  Spell Slots · click to use · right-click to recover
+                  Memorized · click to cast · right-click to restore
                 </p>
                 {Object.entries(character.spell_slots)
                   .filter(([, max]) => (max as number) > 0)
@@ -521,7 +514,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                     return (
                       <div key={level} className="flex items-center gap-2">
                         <span className="text-[9px] uppercase tracking-widest shrink-0 w-12" style={{ color: 'var(--color-text-dim)' }}>
-                          {level === '0' ? 'Cantrip' : `Lv ${level}`}
+                          {`Lv ${level}`}
                         </span>
                         <div className="flex gap-1 flex-wrap flex-1">
                           {Array.from({ length: max }).map((_, i) => {
@@ -546,9 +539,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             {/* Prepared spells list */}
             {character.spells && character.spells.length > 0 && (
               <div className="flex flex-col gap-1">
-                <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-dim)' }}>Known / Prepared</p>
+                <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-dim)' }}>Memorized</p>
                 {character.spells
-                  .filter(s => s.is_prepared || s.level === 0)
+                  .filter(s => s.is_prepared)
                   .sort((a, b) => a.level - b.level)
                   .map(spell => (
                     <div key={spell.id} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>

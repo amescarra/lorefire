@@ -13,7 +13,7 @@ class CharacterSpellController extends Controller
     {
         $data = $request->validate([
             'name'         => 'required|string|max:255',
-            'level'        => 'required|integer|min:0|max:9',
+            'level'        => 'required|integer|min:1|max:9',
             'school'       => 'nullable|string|max:100',
             'casting_time' => 'nullable|string|max:100',
             'range'        => 'nullable|string|max:100',
@@ -23,11 +23,12 @@ class CharacterSpellController extends Controller
             'ritual'       => 'boolean',
             'description'  => 'nullable|string',
             'is_prepared'  => 'boolean',
+            'is_cast'      => 'boolean',
         ]);
 
         $character->spells()->create($data);
 
-        return back()->with('success', 'Spell added.');
+        return back()->with('success', 'Spell added to the repertoire.');
     }
 
     public function update(Request $request, Character $character, CharacterSpell $spell): RedirectResponse
@@ -36,7 +37,7 @@ class CharacterSpellController extends Controller
 
         $data = $request->validate([
             'name'         => 'required|string|max:255',
-            'level'        => 'required|integer|min:0|max:9',
+            'level'        => 'required|integer|min:1|max:9',
             'school'       => 'nullable|string|max:100',
             'casting_time' => 'nullable|string|max:100',
             'range'        => 'nullable|string|max:100',
@@ -46,6 +47,7 @@ class CharacterSpellController extends Controller
             'ritual'       => 'boolean',
             'description'  => 'nullable|string',
             'is_prepared'  => 'boolean',
+            'is_cast'      => 'boolean',
         ]);
 
         $spell->update($data);
@@ -57,12 +59,24 @@ class CharacterSpellController extends Controller
     {
         abort_if($spell->character_id !== $character->id, 403);
 
-        // Cantrips (level 0) are always prepared — ignore toggle
-        if ($spell->level === 0) {
+        $next = ! $spell->is_prepared;
+        $spell->update([
+            'is_prepared' => $next,
+            'is_cast' => $next ? $spell->is_cast : false,
+        ]);
+
+        return back();
+    }
+
+    public function toggleCast(Character $character, CharacterSpell $spell): RedirectResponse
+    {
+        abort_if($spell->character_id !== $character->id, 403);
+
+        if (! $spell->is_prepared) {
             return back();
         }
 
-        $spell->update(['is_prepared' => ! $spell->is_prepared]);
+        $spell->update(['is_cast' => ! $spell->is_cast]);
 
         return back();
     }

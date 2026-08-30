@@ -1,6 +1,6 @@
 base_url = "https://lorefire.justinwoodring.com"
-title = "Lorefire"
-description = "A local-first chronicle for 5e tabletop campaigns."
+title = "Lorefire 2E"
+description = "A local-first chronicle for AD&D 2nd Edition tabletop campaigns."
 
 compile_sass = true
 build_search_index = false
@@ -10,10 +10,10 @@ theme = "dracula"
 
 [extra]
 logo = "/logo.png"
-github = "https://github.com/JustinWoodring/lorefire"
+github = "https://github.com/amescarra/lorefire"
 author = "Justin Woodring"
 menu = [
     { name = "Docs", url = "/docs" },
-    { name = "Download", url = "https://github.com/JustinWoodring/lorefire/releases" },
-    { name = "GitHub", url = "https://github.com/JustinWoodring/lorefire" }
+    { name = "Download", url = "https://github.com/amescarra/lorefire/releases" },
+    { name = "GitHub", url = "https://github.com/amescarra/lorefire" }
 ]
