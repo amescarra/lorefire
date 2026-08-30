@@ -313,4 +313,62 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringContainsString('--prefer-binary', $sh);
         $this->assertStringContainsString('model preload skipped', $sh);
     }
+
+    public function test_setup_ps1_is_safe_for_windows_powershell_51(): void
+    {
+        $path = base_path('resources/python/setup.ps1');
+        $ps1 = file_get_contents($path);
+        $this->assertIsString($ps1);
+
+        foreach (unpack('C*', $ps1) as $offset => $byte) {
+            $this->assertLessThan(
+                128,
+                $byte,
+                'setup.ps1 must be ASCII. Non-ASCII at byte '.$offset.' (0x'.dechex($byte).') breaks PowerShell 5.1 UTF-8-without-BOM parsing.'
+            );
+        }
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/Write-Host\s+"[^"\n]*\(\s*\w+\s*,/',
+            $ps1,
+            'Write-Host double-quoted (word, word) is a PS 5.1 ParserError if quotes desync.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            "/-ArgumentList\\s+@\\('-c',\\s*\"/",
+            $ps1,
+            'Python -c must not sit in a double-quoted PowerShell string.'
+        );
+
+        $withoutHereStrings = preg_replace("/@'.*?'@/s", '', $ps1);
+        $this->assertStringNotContainsString('getattr(', $withoutHereStrings);
+        $this->assertStringNotContainsString('__version__', $withoutHereStrings);
+        $this->assertStringContainsString('$modelCode = @\'', $ps1);
+        $this->assertStringContainsString('$whisperxVerifyCode = @\'', $ps1);
+        $this->assertStringContainsString('$torchVerifyCode = @\'', $ps1);
+        $this->assertStringContainsString('Write-Host \'==> Pre-downloading WhisperX base model (optional, 3 min cap)...\'', $ps1);
+
+        $this->assertSetupPs1ParsesInPowerShell($path);
+    }
+
+    private function assertSetupPs1ParsesInPowerShell(string $path): void
+    {
+        $shells = [];
+        foreach (['pwsh', 'powershell'] as $bin) {
+            $found = trim((string) shell_exec('command -v '.escapeshellarg($bin).' 2>/dev/null'));
+            if ($found !== '') {
+                $shells[] = $found;
+            }
+        }
+        if ($shells === []) {
+            $this->assertTrue(true, 'No PowerShell on this host; ASCII/shape checks above are the CI gate.');
+
+            return;
+        }
+
+        $quoted = str_replace("'", "''", $path);
+        $parse = '[void][System.Management.Automation.Language.Parser]::ParseFile(\''.$quoted.'\', [ref]$null, [ref]$errs); if ($errs) { $errs | ForEach-Object { $_.ToString() }; exit 1 }';
+        $cmd = $shells[0].' -NoProfile -NonInteractive -Command '.escapeshellarg($parse);
+        exec($cmd, $output, $code);
+        $this->assertSame(0, $code, "PowerShell failed to parse setup.ps1:\n".implode("\n", $output));
+    }
 }
