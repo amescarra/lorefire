@@ -54,6 +54,8 @@ xattr -rd com.apple.quarantine /Applications/Lorefire.app
 - [PHP](https://php.net) 8.2+
 - [Composer](https://getcomposer.org)
 
+**Windows on ARM:** keep ARM64 Node (do not install x64 Node). `native:serve` uses your system ARM64 PHP (`winget install PHP.PHP.8.4`). NativePHP php-bin has no `win/arm64` zip — see [lorefire-desktop/WINDOWS-ARM.md](lorefire-desktop/WINDOWS-ARM.md). Packaged ARM installers are still blocked upstream.
+
 ### Setup
 
 ```bash
@@ -80,6 +82,8 @@ npm run build
 # Start the app
 php artisan native:serve
 ```
+
+On Windows ARM64, run that same command with ARM Node + ARM PHP on PATH. Optional check wrapper: `powershell -File scripts/native-serve.ps1`.
 
 > **Note:** Make sure no other Vite process is already running on port 5173 before starting `native:serve`. You can check with `lsof -i :5173`.
 
