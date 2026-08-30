@@ -10,6 +10,12 @@ namespace App\Support;
  */
 class Adnd2eOracleBriefing
 {
+    /** Max campaign.notes characters injected into the Oracle prompt. */
+    public const NOTES_CAP = 4000;
+
+    /** Max character.backstory characters injected per character. */
+    public const BACKSTORY_CAP = 1800;
+
     public static function markdown(): string
     {
         $death = Adnd2e::DEATH_THRESHOLD;
@@ -66,7 +72,7 @@ class Adnd2eOracleBriefing
             '- Kit / specialist is one free-text field. Suggestions are names only, filtered by race and required class(es). Specialist schools ('.$schools.') appear for Mages. Racial-handbook kit names (for example Bladesinger) appear only when race and class path match — Bladesinger is Elf + Fighter/Mage, not a generic Mage/wizard-handbook kit. Do not invent kit benefit tables.',
             '- Weapon and non-weapon proficiencies on the sheet are names only.',
             '',
-            'When campaign or character rows are provided, use the sheet\'s stored THAC0, descending AC, HP, class_path, and kit. Do not invent those numbers.',
+            'When campaign or character rows are provided, use the sheet\'s stored THAC0, descending AC, HP, class_path, kit, backstory, and campaign notes. Do not invent those numbers or origin stories.',
         ];
 
         return implode("\n", $lines);
@@ -97,12 +103,25 @@ class Adnd2eOracleBriefing
                     $lines[] = (string) $campaign['description'];
                 }
 
+                $notes = self::clipNarrative($campaign['notes'] ?? '', self::NOTES_CAP);
+                if ($notes !== null) {
+                    $lines[] = '';
+                    $lines[] = '**Campaign notes:**';
+                    $lines[] = $notes;
+                }
+
                 if (! empty($campaign['characters']) && is_array($campaign['characters'])) {
                     $lines[] = '';
                     $lines[] = '**Characters:**';
                     foreach ($campaign['characters'] as $c) {
-                        if (is_array($c)) {
-                            $lines[] = self::formatCharacterLine($c);
+                        if (! is_array($c)) {
+                            continue;
+                        }
+                        $lines[] = self::formatCharacterLine($c);
+                        $backstory = self::clipNarrative($c['backstory'] ?? '', self::BACKSTORY_CAP);
+                        if ($backstory !== null) {
+                            $lines[] = '  **Backstory:**';
+                            $lines[] = '  '.str_replace("\n", "\n  ", $backstory);
                         }
                     }
                 }
@@ -170,5 +189,22 @@ class Adnd2eOracleBriefing
         }
 
         return $line;
+    }
+
+    /**
+     * Trim campaign notes / character backstory for the prompt.
+     * Returns null when empty so callers can omit the section.
+     */
+    public static function clipNarrative(mixed $value, int $max): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+        if (mb_strlen($text) <= $max) {
+            return $text;
+        }
+
+        return rtrim(mb_substr($text, 0, $max)).' (truncated)';
     }
 }

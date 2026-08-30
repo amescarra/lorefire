@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Link } from '@inertiajs/react'
 import ReactMarkdown from 'react-markdown'
 import AppLayout from '@/Layouts/AppLayout'
-import { Campaign } from '@/types'
+import { Campaign, Character, GameSession } from '@/types'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -23,6 +23,39 @@ const SUGGESTED_PROMPTS = [
 
 const CSRF_TOKEN = () =>
   (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
+
+/**
+ * Explicit Oracle payload so campaign.notes and character.backstory
+ * are always sent (the prompt builder reads those fields).
+ */
+export function oracleCampaignContext(campaigns: Campaign[]) {
+  return campaigns.map((campaign) => ({
+    name: campaign.name,
+    description: campaign.description,
+    notes: campaign.notes,
+    characters: (campaign.characters ?? []).map((c: Character) => ({
+      name: c.name,
+      race: c.race,
+      class: c.class,
+      level: c.level,
+      class_path: c.class_path,
+      subclass: c.subclass,
+      current_hp: c.current_hp,
+      max_hp: c.max_hp,
+      armor_class: c.armor_class,
+      thac0: c.thac0,
+      gold: c.gold,
+      experience_points: c.experience_points,
+      backstory: c.backstory,
+    })),
+    game_sessions: (campaign.game_sessions ?? []).map((s: GameSession) => ({
+      session_number: s.session_number,
+      title: s.title,
+      played_at: s.played_at,
+      session_notes: s.session_notes,
+    })),
+  }))
+}
 
 function TypingIndicator() {
   return (
@@ -78,7 +111,7 @@ export default function OracleIndex({ campaigns, hasLlm }: Props) {
     try {
       // 1. Dispatch the job — returns reply_id immediately
       const body: Record<string, unknown> = { messages: nextMessages }
-      if (includeContext) body.context = { campaigns }
+      if (includeContext) body.context = { campaigns: oracleCampaignContext(campaigns) }
 
       const dispatchRes = await fetch('/oracle/ask', {
         method: 'POST',
