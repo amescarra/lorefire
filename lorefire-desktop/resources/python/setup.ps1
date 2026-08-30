@@ -358,8 +358,11 @@ if (-not (Test-Path $VenvPython)) {
     exit 1
 }
 
-# -- Upgrade pip ---------------------------------------------------------
-Invoke-Pip -Label 'Upgrading pip' -PipArgs @('--upgrade', 'pip', 'setuptools', 'wheel') -TimeoutSec 300
+# -- Pin pip -------------------------------------------------------------
+# pip>=24.1 rejects omegaconf 2.1.0 (invalid PyYAML (>=5.1.*) metadata) and
+# retries that wheel forever. Keep venv pip at 24.0.x. Do not upgrade to 26.
+# --upgrade pip==24.0 also downgrades an existing 26.x venv pip.
+Invoke-Pip -Label 'Pinning pip to 24.0' -PipArgs @('--upgrade', 'pip==24.0', 'setuptools', 'wheel') -TimeoutSec 300
 
 # -- Install torch (CPU or CUDA) -----------------------------------------
 # Pin 2.5.1 to match requirements.txt / pyannote 3.x. GPU is optional;

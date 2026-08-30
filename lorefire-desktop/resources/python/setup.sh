@@ -135,8 +135,10 @@ pip_install() {
   fi
 }
 
-# -- Upgrade pip ---------------------------------------------------------
-pip_install "Upgrading pip" 300 --upgrade pip setuptools wheel
+# -- Pin pip -------------------------------------------------------------
+# pip>=24.1 rejects omegaconf 2.1.0 (invalid metadata) and can retry forever.
+# Keep venv pip at 24.0.x. --upgrade pip==24.0 also downgrades pip 26.x.
+pip_install "Pinning pip to 24.0" 300 --upgrade pip==24.0 setuptools wheel
 
 # -- Install torch (CPU or CUDA) -----------------------------------------
 # GPU is optional. CPU wheels are the supported first-run path.

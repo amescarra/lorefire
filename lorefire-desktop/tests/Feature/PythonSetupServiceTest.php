@@ -373,6 +373,26 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringNotContainsString('install from the Microsoft Store', $ps1);
     }
 
+    public function test_setup_pins_pip_below_24_1_and_omegaconf_2_3(): void
+    {
+        $ps1 = file_get_contents(base_path('resources/python/setup.ps1'));
+        $this->assertIsString($ps1);
+        $this->assertStringContainsString("'pip==24.0'", $ps1);
+        $this->assertStringNotContainsString("'pip', 'setuptools'", $ps1);
+        $this->assertStringContainsString('--only-binary=:all:', $ps1);
+        $this->assertStringContainsString('Get-TimedCommandExitCode', $ps1);
+        $this->assertStringContainsString('WindowsApps', $ps1);
+
+        $sh = file_get_contents(base_path('resources/python/setup.sh'));
+        $this->assertIsString($sh);
+        $this->assertStringContainsString('pip==24.0', $sh);
+
+        $req = file_get_contents(base_path('resources/python/requirements.txt'));
+        $this->assertIsString($req);
+        $this->assertMatchesRegularExpression('/^omegaconf>=2\.3\.0,<3/m', $req);
+        $this->assertDoesNotMatchRegularExpression('/^omegaconf==2\.1/m', $req);
+    }
+
     public function test_setup_ps1_does_not_treat_null_exitcode_as_failure(): void
     {
         $ps1 = file_get_contents(base_path('resources/python/setup.ps1'));
