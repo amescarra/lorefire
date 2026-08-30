@@ -76,23 +76,27 @@ class KitFieldUiTest extends TestCase
 
     public function test_psionicist_sheet_fields_are_gated_and_have_no_handbook_excerpts(): void
     {
-        $pages = [
-            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Create.tsx',
-            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Edit.tsx',
-            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Show.tsx',
-        ];
-        foreach ($pages as $path) {
-            $tsx = file_get_contents($path);
+        $root = dirname(__DIR__, 2);
+        foreach (['Create.tsx', 'Edit.tsx'] as $page) {
+            $tsx = file_get_contents($root.'/resources/js/Pages/Characters/'.$page);
             $this->assertIsString($tsx);
             $this->assertStringContainsString('hasPsionicist', $tsx);
-            $this->assertStringContainsString('data-testid="psionicist-sheet"', $tsx);
+            $this->assertStringContainsString('{hasPsionicist(', $tsx);
+            $this->assertStringContainsString('<PsionicistSheetFields', $tsx);
             $this->assertStringNotContainsString('Total Sciences', $tsx);
             $this->assertStringNotContainsString('Total Devotions', $tsx);
             $this->assertStringNotContainsString('Power Score', $tsx);
         }
 
-        $sheet = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/PsionicistSheetFields.tsx');
+        $show = file_get_contents($root.'/resources/js/Pages/Characters/Show.tsx');
+        $this->assertIsString($show);
+        $this->assertStringContainsString('hasPsionicist(classEntries)', $show);
+        $this->assertStringContainsString('data-testid="psionicist-sheet"', $show);
+        $this->assertStringNotContainsString('Total Sciences', $show);
+
+        $sheet = file_get_contents($root.'/resources/js/Components/PsionicistSheetFields.tsx');
         $this->assertIsString($sheet);
+        $this->assertStringContainsString('data-testid="psionicist-sheet"', $sheet);
         $this->assertStringContainsString('psionic-discipline-labels', $sheet);
         $this->assertStringContainsString('PSIONIC_DISCIPLINES', $sheet);
         $this->assertStringNotContainsString('science', strtolower($sheet));
