@@ -43,17 +43,19 @@ class Adnd2eCharacterTest extends TestCase
         $this->assertArrayNotHasKey('dnd_beyond_url', $character->getAttributes());
     }
 
-    public function test_dnd_beyond_import_routes_are_gone(): void
+    public function test_dnd_beyond_import_is_removed(): void
     {
+        $this->assertFalse(class_exists(\App\Http\Controllers\DndBeyondImportController::class));
+
         $campaign = Campaign::factory()->create();
 
         $this->post("/campaigns/{$campaign->id}/characters/import-beyond", [
             'url' => 'https://www.dndbeyond.com/characters/1',
-        ])->assertNotFound();
+        ])->assertStatus(405);
 
         $this->post('/characters/import-beyond', [
             'url' => 'https://www.dndbeyond.com/characters/1',
-        ])->assertNotFound();
+        ])->assertStatus(405);
     }
 
     public function test_overnight_rest_heals_one_and_clears_cast_marks(): void
