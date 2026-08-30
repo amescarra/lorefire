@@ -50,4 +50,27 @@ class KitFieldUiTest extends TestCase
         $this->assertContains('Illusionist', $options);
         $this->assertNotContains('Bladesinger', $options);
     }
+
+    public function test_psionicist_kit_offers_discipline_labels_only(): void
+    {
+        $tsx = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/KitField.tsx');
+        $this->assertIsString($tsx);
+        $this->assertStringContainsString('optgroup label="Psionic disciplines"', $tsx);
+        $this->assertStringNotContainsString('science', strtolower($tsx));
+        $this->assertStringNotContainsString('devotion', strtolower($tsx));
+        $this->assertStringNotContainsString('power score', strtolower($tsx));
+
+        $options = Adnd2e::suggestedSubclassOptions('Human', [
+            ['class' => 'Psionicist', 'level' => 9],
+        ]);
+        $this->assertContains('Telepathy', $options);
+        $this->assertContains('Metapsionics', $options);
+        $this->assertNotContains('Bladesinger', $options);
+
+        $php = file_get_contents(dirname(__DIR__, 2).'/app/Support/Adnd2e.php');
+        $this->assertIsString($php);
+        $this->assertStringNotContainsString('Total Disciplines', $php);
+        $this->assertStringNotContainsString('Total Sciences', $php);
+        $this->assertStringNotContainsString('Def. Modes', $php);
+    }
 }

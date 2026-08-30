@@ -96,9 +96,43 @@ class Adnd2eTest extends TestCase
         $this->assertTrue(Adnd2e::rewriteLegacyClass('Warlock')['mapped']);
         $this->assertSame('Thief', Adnd2e::rewriteLegacyClass('Rogue')['class']);
         $this->assertSame('Fighter', Adnd2e::rewriteLegacyClass('Barbarian')['class']);
+        $this->assertSame('Psionicist', Adnd2e::rewriteLegacyClass('Psion')['class']);
+        $this->assertTrue(Adnd2e::rewriteLegacyClass('Psion')['mapped']);
+        $this->assertSame('Psionicist', Adnd2e::rewriteLegacyClass('Psionics')['class']);
+        $this->assertSame('Psionicist', Adnd2e::rewriteLegacyClass('Psionic')['class']);
+        $this->assertSame('Psionicist', Adnd2e::rewriteLegacyClass('Psionicist')['class']);
+        $this->assertFalse(Adnd2e::rewriteLegacyClass('Psionicist')['rejected']);
         $unknown = Adnd2e::rewriteLegacyClass('Echo Knight');
         $this->assertTrue($unknown['rejected']);
         $this->assertSame('Fighter', $unknown['class']);
+    }
+
+    public function test_fighter_and_psionicist_combine_thac0_and_hit_dice(): void
+    {
+        $this->assertContains('Psionicist', Adnd2e::CLASSES);
+        $this->assertSame('rogue', Adnd2e::classGroup('Psionicist'));
+        $this->assertSame('d6', Adnd2e::hitDie('Psionicist'));
+        $this->assertSame(Adnd2e::thac0('Thief', 9), Adnd2e::thac0('Psionicist', 9));
+        $this->assertSame(Adnd2e::savingThrows('Thief', 9), Adnd2e::savingThrows('Psionicist', 9));
+
+        $entries = Adnd2e::normalizeClassLevels([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Psion', 'level' => 9],
+        ], 'Fighter/Psion', 10, 'multi');
+
+        $this->assertSame('Fighter', $entries[0]['class']);
+        $this->assertSame('Psionicist', $entries[1]['class']);
+        $this->assertSame('Fighter/Psionicist', Adnd2e::displayClassName($entries, 'multi'));
+        $this->assertSame(11, Adnd2e::combinedThac0($entries));
+        $this->assertSame('d10/d6', Adnd2e::combinedHitDie($entries));
+
+        $dual = Adnd2e::normalizeClassLevels([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Psionicist', 'level' => 9],
+        ], 'Fighter', 10, 'dual');
+        $this->assertSame('Fighter → Psionicist', Adnd2e::displayClassName($dual, 'dual'));
+        $this->assertSame(9, Adnd2e::displayLevel($dual, 'dual'));
+        $this->assertSame(11, Adnd2e::combinedThac0($dual));
     }
 
     public function test_multi_class_uses_best_thac0_and_saves(): void

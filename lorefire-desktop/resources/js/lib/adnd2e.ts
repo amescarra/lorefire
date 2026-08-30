@@ -2,7 +2,17 @@
 
 export const RACES = ['Human', 'Dwarf', 'Elf', 'Gnome', 'Half-Elf', 'Halfling', 'Half-Orc', 'Other'] as const
 
-export const CLASSES = ['Fighter', 'Paladin', 'Ranger', 'Mage', 'Cleric', 'Druid', 'Thief', 'Bard'] as const
+export const CLASSES = ['Fighter', 'Paladin', 'Ranger', 'Mage', 'Cleric', 'Druid', 'Thief', 'Bard', 'Psionicist'] as const
+
+/** Discipline name labels only. No power text, PSP tables, or handbook lists. */
+export const PSIONIC_DISCIPLINES = [
+  'Clairsentience',
+  'Psychokinesis',
+  'Psychometabolism',
+  'Psychoportation',
+  'Telepathy',
+  'Metapsionics',
+] as const
 
 export const SPECIALIST_SCHOOLS = [
   'Abjurer', 'Conjurer', 'Diviner', 'Enchanter', 'Illusionist', 'Invoker', 'Necromancer', 'Transmuter',
@@ -144,8 +154,10 @@ export function suggestedRacialKits(race: string, entries: Array<{ class?: strin
 
 export function suggestedSubclassOptions(race: string, entries: Array<{ class?: string } | string>): string[] {
   const kits = suggestedRacialKits(race, entries)
-  const schools = kitClassNames(entries).includes('Mage') ? [...SPECIALIST_SCHOOLS] : []
-  return Array.from(new Set([...schools, ...kits]))
+  const names = kitClassNames(entries)
+  const schools = names.includes('Mage') ? [...SPECIALIST_SCHOOLS] : []
+  const disciplines = names.includes('Psionicist') ? [...PSIONIC_DISCIPLINES] : []
+  return Array.from(new Set([...schools, ...disciplines, ...kits]))
 }
 
 export const ALIGNMENTS = [
@@ -203,14 +215,19 @@ export function normalizeClass(characterClass: string): string {
   }
   if (characterClass === 'Rogue') return 'Thief'
   if (characterClass === 'Priest') return 'Cleric'
+  if (characterClass === 'Psion' || characterClass === 'Psionic' || characterClass === 'Psionics') return 'Psionicist'
   return characterClass
 }
 
+/**
+ * Psionicist uses the rogue combat group in this engine: d6 HD and rogue
+ * THAC0/saves. CPHB treats it as its own group; we do not reprint that table.
+ */
 export function classGroup(characterClass: string): ClassGroup {
   const c = normalizeClass(characterClass)
   if (c === 'Fighter' || c === 'Paladin' || c === 'Ranger') return 'warrior'
   if (c === 'Cleric' || c === 'Druid') return 'priest'
-  if (c === 'Thief' || c === 'Bard') return 'rogue'
+  if (c === 'Thief' || c === 'Bard' || c === 'Psionicist') return 'rogue'
   return 'wizard'
 }
 
@@ -425,6 +442,7 @@ export function rewriteLegacyClass(name: string): string {
   if (key === 'rogue') return 'Thief'
   if (['barbarian', 'monk', 'blood hunter'].includes(key)) return 'Fighter'
   if (key === 'priest') return 'Cleric'
+  if (['psion', 'psionic', 'psionics'].includes(key)) return 'Psionicist'
   return normalizeClass(name)
 }
 

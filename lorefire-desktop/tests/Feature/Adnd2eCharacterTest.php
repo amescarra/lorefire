@@ -201,6 +201,69 @@ class Adnd2eCharacterTest extends TestCase
         $this->assertSame('Fighter/Mage', $character->class);
     }
 
+    public function test_character_can_store_fighter_and_psionicist_levels(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Logain',
+            'race' => 'Human',
+            'class' => 'Fighter',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 10],
+                ['class' => 'Psion', 'level' => 9],
+            ],
+            'level' => 10,
+            'alignment' => 'Lawful Neutral',
+            'strength' => 16,
+            'dexterity' => 12,
+            'constitution' => 14,
+            'intelligence' => 14,
+            'wisdom' => 16,
+            'charisma' => 10,
+        ])->assertRedirect();
+
+        $character = Character::query()->where('name', 'Logain')->firstOrFail();
+        $this->assertSame('multi', $character->class_path);
+        $this->assertSame('Fighter/Psionicist', $character->class);
+        $this->assertSame([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Psionicist', 'level' => 9],
+        ], $character->class_levels);
+        $this->assertSame(11, $character->thac0);
+        $this->assertSame('d10/d6', $character->hit_die);
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Logain Dual',
+            'race' => 'Human',
+            'class' => 'Fighter',
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 10],
+                ['class' => 'Psionicist', 'level' => 9],
+            ],
+            'level' => 9,
+            'alignment' => 'Lawful Neutral',
+            'strength' => 16,
+            'dexterity' => 12,
+            'constitution' => 14,
+            'intelligence' => 14,
+            'wisdom' => 16,
+            'charisma' => 10,
+        ])->assertRedirect();
+
+        $dual = Character::query()->where('name', 'Logain Dual')->firstOrFail();
+        $this->assertSame('dual', $dual->class_path);
+        $this->assertSame('Fighter → Psionicist', $dual->class);
+        $this->assertSame(9, $dual->level);
+        $this->assertSame([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Psionicist', 'level' => 9],
+        ], $dual->class_levels);
+        $this->assertSame(11, $dual->thac0);
+    }
+
     public function test_condition_manager_adds_and_clears_2e_states(): void
     {
         $character = Character::factory()->create();

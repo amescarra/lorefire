@@ -33,6 +33,20 @@ class Adnd2e
         'Druid',
         'Thief',
         'Bard',
+        'Psionicist',
+    ];
+
+    /**
+     * Discipline name labels only (kit suggestions). No power text, PSP tables,
+     * sciences, or devotions.
+     */
+    public const PSIONIC_DISCIPLINES = [
+        'Clairsentience',
+        'Psychokinesis',
+        'Psychometabolism',
+        'Psychoportation',
+        'Telepathy',
+        'Metapsionics',
     ];
 
     public const SPECIALIST_SCHOOLS = [
@@ -186,6 +200,14 @@ class Adnd2e
 
     public const DEATH_THRESHOLD = -10;
 
+    /**
+     * Map a class onto a PHB combat group used by this engine.
+     *
+     * Psionicist is its own handbook class at the table. This app does not add
+     * a fifth THAC0/save table. Well-known 2E pattern: hit die is d6, and
+     * THAC0 advances as a rogue. CPHB saving throws are unique; we reuse the
+     * rogue save row as the thin PHB-group stand-in. No PSP engine.
+     */
     public static function classGroup(string $class): string
     {
         $class = self::normalizeClass($class);
@@ -193,7 +215,7 @@ class Adnd2e
         return match ($class) {
             'Fighter', 'Paladin', 'Ranger' => 'warrior',
             'Cleric', 'Druid' => 'priest',
-            'Thief', 'Bard' => 'rogue',
+            'Thief', 'Bard', 'Psionicist' => 'rogue',
             default => 'wizard',
         };
     }
@@ -209,6 +231,7 @@ class Adnd2e
         return match ($class) {
             'Rogue' => 'Thief',
             'Priest' => 'Cleric',
+            'Psion', 'Psionic', 'Psionics' => 'Psionicist',
             default => $class,
         };
     }
@@ -226,6 +249,7 @@ class Adnd2e
             'rogue' => 'Thief',
             'barbarian', 'monk', 'blood hunter' => 'Fighter',
             'priest' => 'Cleric',
+            'psion', 'psionic', 'psionics' => 'Psionicist',
             default => $original,
         };
 
@@ -447,7 +471,8 @@ class Adnd2e
     }
 
     /**
-     * Specialist schools (if a mage is present) plus eligible racial kits.
+     * Specialist schools (if a mage is present), discipline name labels
+     * (if a Psionicist is present), plus eligible racial kits.
      *
      * @param  array<int, mixed>  $entries
      * @return list<string>

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Input, Select } from '@/Components/Input'
-import { SPECIALIST_SCHOOLS, suggestedRacialKits, kitClassNames } from '@/lib/adnd2e'
+import { PSIONIC_DISCIPLINES, SPECIALIST_SCHOOLS, suggestedRacialKits, kitClassNames } from '@/lib/adnd2e'
 
 const OTHER = '__other__'
 
@@ -13,12 +13,18 @@ interface Props {
 
 export function KitField({ race, entries, value, onChange }: Props) {
   const filled = entries.filter(e => e.class)
-  const hasMage = kitClassNames(filled).includes('Mage')
+  const names = kitClassNames(filled)
+  const hasMage = names.includes('Mage')
+  const hasPsionicist = names.includes('Psionicist')
   const kits = suggestedRacialKits(race, filled)
-  const listed = new Set<string>([...kits, ...(hasMage ? SPECIALIST_SCHOOLS : [])])
+  const listed = new Set<string>([
+    ...kits,
+    ...(hasMage ? SPECIALIST_SCHOOLS : []),
+    ...(hasPsionicist ? PSIONIC_DISCIPLINES : []),
+  ])
   const custom = value !== '' && !listed.has(value)
   const selectValue = custom ? OTHER : value
-  const showSuggestions = hasMage || kits.length > 0
+  const showSuggestions = hasMage || hasPsionicist || kits.length > 0
 
   if (!showSuggestions) {
     return (
@@ -55,6 +61,11 @@ export function KitField({ race, entries, value, onChange }: Props) {
         {hasMage && (
           <optgroup label="Specialist school">
             {SPECIALIST_SCHOOLS.map(s => <option key={s} value={s}>{s}</option>)}
+          </optgroup>
+        )}
+        {hasPsionicist && (
+          <optgroup label="Psionic disciplines">
+            {PSIONIC_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
           </optgroup>
         )}
         <option value={OTHER}>Other (type a name)</option>
