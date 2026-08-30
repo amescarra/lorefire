@@ -27,12 +27,20 @@ class PythonSetupServiceTest extends TestCase
         if (file_exists($this->logPath)) {
             unlink($this->logPath);
         }
+        $console = $this->service->setupConsoleLogPath();
+        if (file_exists($console)) {
+            unlink($console);
+        }
     }
 
     protected function tearDown(): void
     {
         if (file_exists($this->logPath)) {
             unlink($this->logPath);
+        }
+        $console = $this->service->setupConsoleLogPath();
+        if (file_exists($console)) {
+            unlink($console);
         }
         parent::tearDown();
     }
@@ -137,20 +145,37 @@ class PythonSetupServiceTest extends TestCase
         $this->assertStringContainsString('Could not find a version', $error);
     }
 
-    public function test_windows_async_command_merges_stderr_into_the_log(): void
+    public function test_windows_async_command_merges_stderr_into_the_console_log(): void
     {
+        $console = 'C:\\Users\\DM\\Lorefire\\storage\\logs\\python_setup.console.log';
         $cmd = $this->service->windowsAsyncCommand(
             'C:\\Program Files\\php\\php.exe',
             'C:\\Users\\DM\\Lorefire\\artisan',
-            'C:\\Users\\DM\\Lorefire\\storage\\logs\\python_setup.log',
+            $console,
             false
         );
 
         $this->assertStringContainsString('cmd /c start /b', $cmd);
         $this->assertStringContainsString('2>&1', $cmd);
         $this->assertStringContainsString('python:setup', $cmd);
+        $this->assertStringContainsString('python_setup.console.log', $cmd);
         $this->assertStringNotContainsString('RedirectStandardOutput', $cmd);
         $this->assertStringContainsString('"C:\\Program Files\\php\\php.exe"', $cmd);
+        $this->assertDoesNotMatchRegularExpression('/>>\s*"[^"]*python_setup\.log"/', $cmd);
+    }
+
+    public function test_windows_spawn_redirects_to_console_log_not_the_php_log(): void
+    {
+        $cmd = $this->service->buildAsyncCommand(false, 'Windows');
+        $main = $this->service->setupLogPath();
+        $console = $this->service->setupConsoleLogPath();
+
+        $this->assertStringContainsString('python_setup.console.log', $cmd);
+        $this->assertStringContainsString('2>&1', $cmd);
+        $this->assertStringNotContainsString($main.'"', $cmd);
+        $this->assertStringContainsString(basename($console), $cmd);
+        $this->assertSame(FILE_APPEND, $this->service->logWriteFlags('Windows'));
+        $this->assertSame(FILE_APPEND | LOCK_EX, $this->service->logWriteFlags('Linux'));
     }
 
     public function test_windows_gpu_flag_is_appended(): void
@@ -186,6 +211,89 @@ class PythonSetupServiceTest extends TestCase
                 ->where('python_setup.status', 'running')
                 ->where('python_setup.log', fn ($log) => is_string($log) && str_contains($log, 'Installing WhisperX'))
             );
+    }
+
+    public function test_get_setup_log_includes_console_and_php_logs(): void
+    {
+        file_put_contents($this->logPath, "==> Installing WhisperX and dependencies...\n");
+        file_put_contents($this->service->setupConsoleLogPath(), "[python:setup] Starting WhisperX environment setup (CPU mode)…\n");
+
+        $combined = $this->service->getSetupLog();
+        $this->assertStringContainsString('Installing WhisperX', $combined);
+        $this->assertStringContainsString('Starting WhisperX environment setup', $combined);
+    }
+
+    public function test_write_setup_log_does_not_throw_when_the_file_is_already_open(): void
+    {
+        file_put_contents($this->logPath, "seed\n");
+        $handle = fopen($this->logPath, 'a');
+        $this->assertIsResource($handle);
+
+        $this->service->writeSetupLog("==> Installing WhisperX and dependencies...\n");
+        fclose($handle);
+
+        $this->assertStringContainsString('Installing WhisperX', $this->service->getSetupLog());
+    }
+
+    public function test_overlapping_async_setup_is_skipped_while_running(): void
+    {
+        AppSetting::set(PythonSetupService::SETTING_STATUS, PythonSetupService::STATUS_RUNNING);
+        AppSetting::set(PythonSetupService::SETTING_STARTED_AT, time() - 10, 'integer');
+        file_put_contents($this->logPath, "==> Installing WhisperX and dependencies...\n");
+
+        $this->service->runSetupAsync();
+
+        $this->assertSame(PythonSetupService::STATUS_RUNNING, AppSetting::get(PythonSetupService::SETTING_STATUS));
+        $this->assertStringContainsString('already running', $this->service->getSetupLog());
+    }
+
+    public function test_forced_retry_starts_even_if_marked_running(): void
+    {
+        $service = new class extends PythonSetupService
+        {
+            public function setupScriptPath(): string
+            {
+                return '/tmp/lorefire-missing-setup-script.sh';
+            }
+        };
+
+        AppSetting::set(PythonSetupService::SETTING_STATUS, PythonSetupService::STATUS_RUNNING);
+        AppSetting::set(PythonSetupService::SETTING_STARTED_AT, time() - 10, 'integer');
+
+        $service->runSetupAsync(force: true);
+
+        $this->assertSame(PythonSetupService::STATUS_FAILED, AppSetting::get(PythonSetupService::SETTING_STATUS));
+        $this->assertStringContainsString('Setup script not found', (string) AppSetting::get(PythonSetupService::SETTING_ERROR));
+    }
+
+    public function test_watchdog_ignores_lock_error_spam_as_progress(): void
+    {
+        AppSetting::set(PythonSetupService::SETTING_STATUS, PythonSetupService::STATUS_RUNNING);
+        AppSetting::set(
+            PythonSetupService::SETTING_STARTED_AT,
+            time() - PythonSetupService::STALE_LOG_SECONDS - 30,
+            'integer'
+        );
+        $lockNoise = "file_put_contents(...\\python_setup.log): Failed to open stream: Resource temporarily unavailable\n";
+        file_put_contents($this->logPath, str_repeat($lockNoise, 8));
+        touch($this->logPath, time());
+
+        $this->assertFalse($this->service->logHasPipOutput());
+        $this->assertSame(PythonSetupService::STATUS_FAILED, $this->service->getStatus());
+        $this->assertStringContainsString('stopped writing progress', (string) $this->service->getLastError());
+    }
+
+    public function test_watchdog_does_not_fail_immediately_on_a_lock_error(): void
+    {
+        AppSetting::set(PythonSetupService::SETTING_STATUS, PythonSetupService::STATUS_RUNNING);
+        AppSetting::set(PythonSetupService::SETTING_STARTED_AT, time() - 20, 'integer');
+        file_put_contents(
+            $this->logPath,
+            "file_put_contents(...\\python_setup.log): Failed to open stream: Resource temporarily unavailable\n"
+        );
+
+        $this->assertSame(PythonSetupService::STATUS_RUNNING, $this->service->getStatus());
+        $this->assertNull($this->service->getLastError());
     }
 
     public function test_setup_scripts_are_hang_resistant(): void

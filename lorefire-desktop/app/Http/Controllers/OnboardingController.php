@@ -84,7 +84,7 @@ class OnboardingController extends Controller
      */
     public function retryPython(): \Illuminate\Http\RedirectResponse
     {
-        $this->pythonSetup->runSetupAsync();
+        $this->pythonSetup->runSetupAsync(force: true);
         return back()->with('info', 'Python setup restarted in the background.');
     }
 }

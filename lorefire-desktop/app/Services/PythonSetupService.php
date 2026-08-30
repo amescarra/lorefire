@@ -141,12 +141,11 @@ class PythonSetupService
 
         $now = time();
         $startedAt = (int) AppSetting::get(self::SETTING_STARTED_AT, 0);
-        $logPath = $this->setupLogPath();
-        $logExists = file_exists($logPath);
-        $logMtime = $logExists ? (int) filemtime($logPath) : 0;
+        $logExists = $this->setupLogExists();
+        $logMtime = $this->newestSetupLogMtime();
 
         if ($startedAt <= 0) {
-            if ($logExists && ($now - $logMtime) <= self::STALE_LOG_SECONDS) {
+            if ($logExists && ($now - $logMtime) <= self::STALE_LOG_SECONDS && $this->logHasPipOutput()) {
                 AppSetting::set(self::SETTING_STARTED_AT, $logMtime, 'integer');
                 $startedAt = $logMtime;
             } else {
@@ -176,10 +175,15 @@ class PythonSetupService
             return;
         }
 
-        if ($logExists && $elapsed > self::STALE_LOG_SECONDS && ($now - $logMtime) > self::STALE_LOG_SECONDS) {
-            $this->failSetup(
-                'Setup stopped writing progress for '.(int) (self::STALE_LOG_SECONDS / 60).' minutes (stuck at pip or model download). Last log is included below.'
-            );
+        // Lock-error spam must not keep the job "fresh". Only pip/setup
+        // output counts as progress; otherwise fail after the stale window.
+        if ($elapsed > self::STALE_LOG_SECONDS) {
+            $pipIsLive = $this->logHasPipOutput() && ($now - $logMtime) <= self::STALE_LOG_SECONDS;
+            if (! $pipIsLive) {
+                $this->failSetup(
+                    'Setup stopped writing progress for '.(int) (self::STALE_LOG_SECONDS / 60).' minutes (stuck at pip or model download). Last log is included below.'
+                );
+            }
         }
     }
 
@@ -192,7 +196,6 @@ class PythonSetupService
         $this->beginLog('python:setup start'.($gpu ? ' (GPU)' : ' (CPU)'));
 
         $setupScript = $this->setupScriptPath();
-        $logPath = $this->setupLogPath();
 
         if (! file_exists($setupScript)) {
             $this->failSetup("Setup script not found at: {$setupScript}");
@@ -217,8 +220,8 @@ class PythonSetupService
         $process->setIdleTimeout(self::STALE_LOG_SECONDS);
 
         try {
-            $process->run(function (string $type, string $buffer) use ($logPath) {
-                file_put_contents($logPath, $buffer, FILE_APPEND | LOCK_EX);
+            $process->run(function (string $type, string $buffer) {
+                $this->writeSetupLog($buffer);
             });
 
             if ($process->isSuccessful()) {
@@ -227,7 +230,7 @@ class PythonSetupService
                     AppSetting::set(self::SETTING_ERROR, '');
                     $this->appendLog('Setup complete — whisperx import OK.');
                 } else {
-                    $this->failSetup('Setup completed but whisperx could not be imported. Check '.$logPath);
+                    $this->failSetup('Setup completed but whisperx could not be imported. Check '.$this->setupLogPath());
                 }
             } else {
                 $stderr = $this->sanitize($process->getErrorOutput());
@@ -246,8 +249,21 @@ class PythonSetupService
     /**
      * Dispatch setup as a background process so boot() returns immediately.
      */
-    public function runSetupAsync(bool $gpu = false): void
+    public function runSetupAsync(bool $gpu = false, bool $force = false): void
     {
+        $status = AppSetting::get(self::SETTING_STATUS, self::STATUS_NOT_STARTED);
+        $startedAt = (int) AppSetting::get(self::SETTING_STARTED_AT, 0);
+        if (
+            ! $force
+            && $status === self::STATUS_RUNNING
+            && $startedAt > 0
+            && (time() - $startedAt) < self::STALE_LOG_SECONDS
+        ) {
+            $this->appendLog('setup already running; skip overlapping spawn');
+
+            return;
+        }
+
         $this->markRunning();
         $this->beginLog('python:setup async spawn'.($gpu ? ' (GPU)' : ' (CPU)'));
 
@@ -281,11 +297,14 @@ class PythonSetupService
         $osFamily ??= PHP_OS_FAMILY;
         $php = PHP_BINARY;
         $artisan = base_path('artisan');
-        $logPath = $this->setupLogPath();
+        // Shell redirect must not target the PHP-owned setup log. On Windows,
+        // cmd `>> log` plus file_put_contents(LOCK_EX) on the same path is
+        // EWOULDBLOCK ("Resource temporarily unavailable") and pip never runs.
+        $consoleLog = $this->setupConsoleLogPath();
         $gpuFlag = $gpu ? '--gpu' : '';
 
         if ($osFamily === 'Windows') {
-            return $this->windowsAsyncCommand($php, $artisan, $logPath, $gpu);
+            return $this->windowsAsyncCommand($php, $artisan, $consoleLog, $gpu);
         }
 
         return sprintf(
@@ -293,19 +312,20 @@ class PythonSetupService
             escapeshellarg($php),
             escapeshellarg($artisan),
             $gpuFlag,
-            escapeshellarg($logPath)
+            escapeshellarg($consoleLog)
         );
     }
 
     /**
      * Windows: `cmd /c start /b` detaches without blocking the UI, and
-     * `>> log 2>&1` captures pip progress that otherwise goes to stderr.
+     * `>> console.log 2>&1` keeps artisan/pip stderr. That file is not the
+     * PHP LOCK_EX setup log.
      */
     public function windowsAsyncCommand(string $php, string $artisan, string $logPath, bool $gpu = false): string
     {
-        $phpQ = $this->winQuote($php);
-        $artisanQ = $this->winQuote($artisan);
-        $logQ = $this->winQuote($logPath);
+        $phpQ = $this->winQuote($this->windowsPath($php));
+        $artisanQ = $this->winQuote($this->windowsPath($artisan));
+        $logQ = $this->winQuote($this->windowsPath($logPath));
         $gpuArg = $gpu ? ' --gpu' : '';
 
         return 'cmd /c start /b "" '.$phpQ.' '.$artisanQ.' python:setup'.$gpuArg.' >> '.$logQ.' 2>&1';
@@ -358,28 +378,66 @@ class PythonSetupService
 
     public function setupLogPath(): string
     {
-        return storage_path('logs/python_setup.log');
+        return $this->nativePath(storage_path('logs'.DIRECTORY_SEPARATOR.'python_setup.log'));
+    }
+
+    /**
+     * Artisan/child stdout+stderr from the detached spawn. Must not be the
+     * same path as setupLogPath() — Windows cannot LOCK_EX a file cmd has open.
+     */
+    public function setupConsoleLogPath(): string
+    {
+        return $this->nativePath(storage_path('logs'.DIRECTORY_SEPARATOR.'python_setup.console.log'));
+    }
+
+    public function nativePath(string $path): string
+    {
+        return str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+    }
+
+    public function windowsPath(string $path): string
+    {
+        return str_replace(['/', '\\'], '\\', $path);
+    }
+
+    /**
+     * FILE_APPEND only on Windows so a sibling writer (or leftover handle)
+     * cannot EWOULDBLOCK LOCK_EX. Unix keeps LOCK_EX.
+     */
+    public function logWriteFlags(?string $osFamily = null): int
+    {
+        $osFamily ??= PHP_OS_FAMILY;
+
+        return $osFamily === 'Windows' ? FILE_APPEND : (FILE_APPEND | LOCK_EX);
     }
 
     public function getSetupLog(int $lastBytes = 4096): string
     {
-        $path = $this->setupLogPath();
-        if (! file_exists($path)) {
-            return '';
+        $parts = [];
+        foreach ([$this->setupConsoleLogPath(), $this->setupLogPath()] as $path) {
+            $chunk = $this->tailFile($path, $lastBytes);
+            if ($chunk !== '') {
+                $parts[] = $chunk;
+            }
         }
-        $size = filesize($path);
-        if ($size === 0) {
-            return '';
-        }
-        $handle = fopen($path, 'r');
-        if ($handle === false) {
-            return '';
-        }
-        fseek($handle, max(0, $size - $lastBytes));
-        $content = fread($handle, $lastBytes) ?: '';
-        fclose($handle);
 
-        return $content;
+        return implode("\n", $parts);
+    }
+
+    /**
+     * True when the log shows pip/venv work — not spawn banners or lock errors.
+     */
+    public function logHasPipOutput(?string $text = null): bool
+    {
+        $text = $text ?? $this->getSetupLog(8000);
+        if (trim($text) === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/Installing WhisperX|Collecting |Downloading |Upgrading pip|Creating virtual environment|Verifying |torch OK|whisperx OK|Setup complete|Requirement already satisfied/i',
+            $text
+        );
     }
 
     private function markRunning(): void
@@ -409,21 +467,82 @@ class PythonSetupService
         $path = $this->setupLogPath();
         $dir = dirname($path);
         if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            @mkdir($dir, 0755, true);
         }
         if (file_exists($path) && filesize($path) > 512 * 1024) {
-            file_put_contents($path, '');
+            @file_put_contents($path, '');
         }
         $this->appendLog('===== '.$message.' =====');
     }
 
     private function appendLog(string $line): void
     {
+        $this->writeSetupLog('['.date('c').'] '.$line."\n");
+    }
+
+    /**
+     * Write to the PHP-owned setup log. Never throws — a lock failure must
+     * not abort pip.
+     */
+    public function writeSetupLog(string $bytes, ?int $flags = null): void
+    {
         $path = $this->setupLogPath();
         $dir = dirname($path);
         if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            @mkdir($dir, 0755, true);
         }
-        file_put_contents($path, '['.date('c').'] '.$line."\n", FILE_APPEND | LOCK_EX);
+
+        $flags ??= $this->logWriteFlags();
+        try {
+            $ok = @file_put_contents($path, $bytes, $flags);
+            if ($ok === false && ($flags & LOCK_EX) === LOCK_EX) {
+                @file_put_contents($path, $bytes, FILE_APPEND);
+            }
+        } catch (\Throwable $e) {
+            try {
+                @file_put_contents($path, $bytes, FILE_APPEND);
+            } catch (\Throwable $ignored) {
+                Log::warning('[PythonSetup] could not write setup log', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    private function tailFile(string $path, int $lastBytes): string
+    {
+        if (! file_exists($path)) {
+            return '';
+        }
+        $size = filesize($path);
+        if ($size === 0) {
+            return '';
+        }
+        $handle = @fopen($path, 'r');
+        if ($handle === false) {
+            return '';
+        }
+        fseek($handle, max(0, $size - $lastBytes));
+        $content = fread($handle, $lastBytes) ?: '';
+        fclose($handle);
+
+        return $content;
+    }
+
+    private function setupLogExists(): bool
+    {
+        return file_exists($this->setupLogPath()) || file_exists($this->setupConsoleLogPath());
+    }
+
+    private function newestSetupLogMtime(): int
+    {
+        $mtime = 0;
+        foreach ([$this->setupLogPath(), $this->setupConsoleLogPath()] as $path) {
+            if (file_exists($path)) {
+                $mtime = max($mtime, (int) filemtime($path));
+            }
+        }
+
+        return $mtime;
     }
 }
