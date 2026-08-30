@@ -26,8 +26,8 @@ class NativeAppServiceProvider implements ProvidesPhpIni
 
         // Kick off Python/WhisperX venv setup in the background on every boot.
         // - If the venv already exists and whisperx imports cleanly, marks 'ready' instantly.
-        // - If the venv is missing or broken, runs setup.sh asynchronously.
-        // - Does nothing if setup is already in progress.
+        // - If the venv is missing or broken, runs setup asynchronously (CPU wheels).
+        // - Reaps a stuck `running` job (timeout / silent log) before starting another.
         try {
             app(PythonSetupService::class)->bootCheck();
         } catch (\Throwable $e) {

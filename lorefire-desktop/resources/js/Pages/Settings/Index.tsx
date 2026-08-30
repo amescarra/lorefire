@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout'
 import { Button } from '@/Components/Button'
 import { Input, Select } from '@/Components/Input'
 import { RuneDivider } from '@/Components/RuneDivider'
+import { SetupLog } from '@/Components/SetupLog'
 import { AppSettings, PageProps } from '@/types'
 
 interface Props {
@@ -16,6 +17,7 @@ export default function Index({ settings }: Props) {
   const { python_setup } = usePage<PageProps>().props
   const [pythonStatus, setPythonStatus] = useState<PythonStatus>(python_setup?.status ?? 'not_started')
   const [pythonError, setPythonError] = useState<string | null>(python_setup?.error ?? null)
+  const [pythonLog, setPythonLog] = useState<string>(python_setup?.log ?? '')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const { data, setData, post, processing } = useForm({
@@ -48,6 +50,7 @@ export default function Index({ settings }: Props) {
           if (ps) {
             setPythonStatus(ps.status)
             setPythonError(ps.error ?? null)
+            setPythonLog(ps.log ?? '')
             if (ps.status !== 'running' && pollRef.current) clearInterval(pollRef.current)
           }
         },
@@ -71,7 +74,7 @@ export default function Index({ settings }: Props) {
 
   const statusConfig: Record<PythonStatus, { color: string; label: string; desc: string }> = {
     not_started: { color: 'var(--color-text-dim)',   label: 'Not Installed',   desc: 'The Python environment has not been set up yet.' },
-    running:     { color: 'var(--color-warning)',    label: 'Installing…',     desc: 'WhisperX is being installed in the background. This may take a few minutes.' },
+    running:     { color: 'var(--color-warning)',    label: 'Installing…',     desc: 'Installing WhisperX and dependencies (CPU wheels). First run can take 10–20 minutes. Progress appears below. If the log stalls for 10 minutes, setup will stop with an error.' },
     ready:       { color: 'var(--color-success)',    label: 'Ready',           desc: 'WhisperX is installed and verified. Session transcription is available.' },
     failed:      { color: 'var(--color-danger)',     label: 'Install Failed',  desc: pythonError ?? 'An unknown error occurred. Check logs/python_setup.log for details.' },
   }
@@ -98,6 +101,12 @@ export default function Index({ settings }: Props) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-heading tracking-wide" style={{ color: sc.color }}>{sc.label}</p>
               <p className="text-xs text-[var(--color-text-dim)] mt-0.5 leading-relaxed">{sc.desc}</p>
+              {(pythonStatus === 'running' || pythonStatus === 'failed') && (
+                <SetupLog
+                  log={pythonLog}
+                  emptyHint={pythonStatus === 'running' ? 'Waiting for setup log…' : undefined}
+                />
+              )}
             </div>
             {(pythonStatus === 'failed' || pythonStatus === 'not_started') && (
               <Button type="button" variant="ghost" size="sm" onClick={retrySetup}>

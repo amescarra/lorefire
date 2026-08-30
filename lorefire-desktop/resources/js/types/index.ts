@@ -277,6 +277,8 @@ export interface PageProps {
   python_setup?: {
     status: 'not_started' | 'running' | 'ready' | 'failed'
     error?: string | null
+    log?: string | null
+    started_at?: number | null
     onboarding_complete: boolean
   }
 }
