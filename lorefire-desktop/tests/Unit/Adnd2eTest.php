@@ -110,6 +110,13 @@ class Adnd2eTest extends TestCase
     public function test_fighter_and_psionicist_combine_thac0_and_hit_dice(): void
     {
         $this->assertContains('Psionicist', Adnd2e::CLASSES);
+        $this->assertTrue(Adnd2e::hasPsionicist([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Psionics', 'level' => 9],
+        ], 'Fighter', 10, 'multi'));
+        $this->assertFalse(Adnd2e::hasPsionicist([
+            ['class' => 'Fighter', 'level' => 10],
+        ], 'Fighter', 10, 'single'));
         $this->assertSame('rogue', Adnd2e::classGroup('Psionicist'));
         $this->assertSame('d6', Adnd2e::hitDie('Psionicist'));
         $this->assertSame(Adnd2e::thac0('Thief', 9), Adnd2e::thac0('Psionicist', 9));

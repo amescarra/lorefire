@@ -7,9 +7,10 @@ import { RuneDivider } from '@/Components/RuneDivider'
 import { Campaign } from '@/types'
 import { ClassPathFields } from '@/Components/ClassPathFields'
 import { KitField } from '@/Components/KitField'
+import { PsionicistSheetFields } from '@/Components/PsionicistSheetFields'
 import {
   ALIGNMENTS, RACES,
-  ClassPath, combinedHitDie, combinedThac0, formatSigned, movementRate, primaryAdjustment,
+  ClassPath, combinedHitDie, combinedThac0, formatSigned, hasPsionicist, movementRate, primaryAdjustment,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -29,6 +30,9 @@ export default function Create({ campaign, campaigns }: Props) {
     intelligence: 10, wisdom: 10, charisma: 10,
     max_hp: 8, current_hp: 8, armor_class: 10, speed: 12,
     campaign_id: campaign?.id?.toString() ?? '',
+    psp_current: null as number | null,
+    psp_max: null as number | null,
+    psionic_powers: [] as string[],
   })
 
   const submit = (e: React.FormEvent) => {
@@ -120,6 +124,17 @@ export default function Create({ campaign, campaigns }: Props) {
             value={data.subclass}
             onChange={value => setData('subclass', value)}
           />
+
+          {hasPsionicist(data.class_levels) && (
+            <PsionicistSheetFields
+              pspCurrent={data.psp_current}
+              pspMax={data.psp_max}
+              powers={data.psionic_powers}
+              onPspCurrent={value => setData('psp_current', value)}
+              onPspMax={value => setData('psp_max', value)}
+              onPowers={value => setData('psionic_powers', value)}
+            />
+          )}
 
           <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron, or kit notes…" />
 

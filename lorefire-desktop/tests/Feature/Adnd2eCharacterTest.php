@@ -222,6 +222,9 @@ class Adnd2eCharacterTest extends TestCase
             'intelligence' => 14,
             'wisdom' => 16,
             'charisma' => 10,
+            'psp_max' => 40,
+            'psp_current' => 28,
+            'psionic_powers' => ['Sight', 'Nudge'],
         ])->assertRedirect();
 
         $character = Character::query()->where('name', 'Logain')->firstOrFail();
@@ -233,6 +236,9 @@ class Adnd2eCharacterTest extends TestCase
         ], $character->class_levels);
         $this->assertSame(11, $character->thac0);
         $this->assertSame('d10/d6', $character->hit_die);
+        $this->assertSame(40, $character->psp_max);
+        $this->assertSame(28, $character->psp_current);
+        $this->assertSame(['Sight', 'Nudge'], $character->psionic_powers);
 
         $this->post(route('campaigns.characters.store', $campaign), [
             'name' => 'Logain Dual',

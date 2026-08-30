@@ -38,6 +38,10 @@ trait ValidatesAdnd2eCharacter
             'armor_class' => 'integer|min:-20|max:15',
             'speed' => 'integer|min:0',
             'portrait' => 'nullable|file|image|max:10240',
+            'psp_current' => 'nullable|integer|min:0|max:9999',
+            'psp_max' => 'nullable|integer|min:0|max:9999',
+            'psionic_powers' => 'nullable|array',
+            'psionic_powers.*' => 'nullable|string|max:120',
         ];
     }
 
@@ -111,6 +115,34 @@ trait ValidatesAdnd2eCharacter
         if (! isset($data['current_hp']) && isset($data['max_hp'])) {
             $data['current_hp'] = $data['max_hp'];
         }
+
+        return $this->normalizePsionicSheet($data);
+    }
+
+    /**
+     * Sheet tools the player fills. Empty names dropped. No engine defaults.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function normalizePsionicSheet(array $data): array
+    {
+        foreach (['psp_current', 'psp_max'] as $key) {
+            if (! array_key_exists($key, $data) || $data[$key] === '' || $data[$key] === null) {
+                $data[$key] = null;
+            } else {
+                $data[$key] = (int) $data[$key];
+            }
+        }
+
+        $powers = $data['psionic_powers'] ?? [];
+        if (! is_array($powers)) {
+            $powers = [];
+        }
+        $data['psionic_powers'] = array_values(array_filter(
+            array_map(fn ($name) => trim((string) $name), $powers),
+            fn (string $name) => $name !== '',
+        ));
 
         return $data;
     }

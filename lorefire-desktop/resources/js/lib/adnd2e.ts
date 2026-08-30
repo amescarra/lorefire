@@ -152,6 +152,10 @@ export function suggestedRacialKits(race: string, entries: Array<{ class?: strin
   return Array.from(new Set(names))
 }
 
+export function hasPsionicist(entries: Array<{ class?: string } | string>): boolean {
+  return kitClassNames(entries).includes('Psionicist')
+}
+
 export function suggestedSubclassOptions(race: string, entries: Array<{ class?: string } | string>): string[] {
   const kits = suggestedRacialKits(race, entries)
   const names = kitClassNames(entries)

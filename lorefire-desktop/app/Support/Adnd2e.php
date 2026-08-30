@@ -482,6 +482,18 @@ class Adnd2e
         return Adnd2eRacialKits::subclassSuggestions($race, $entries);
     }
 
+    /**
+     * True when any class entry rewrites to Psionicist (Psion / Psionics / …).
+     *
+     * @param  array<int, mixed>|null  $classLevels
+     */
+    public static function hasPsionicist(?array $classLevels, string $class = '', int $level = 1, string $path = 'single'): bool
+    {
+        return Adnd2eRacialKits::hasPsionicist(
+            self::normalizeClassLevels($classLevels, $class, $level, $path)
+        );
+    }
+
     public static function isSpecialist(string $class, ?string $subclass = null): bool
     {
         if (in_array($class, self::SPECIALIST_SCHOOLS, true)) {

@@ -69,7 +69,7 @@ class CharacterController extends Controller
 
     public function update(Request $request, Campaign $campaign, Character $character): RedirectResponse
     {
-        $data = $request->validate($this->characterUpdateRules());
+        $data = $this->normalizePsionicSheet($request->validate($this->characterUpdateRules()));
 
         if ($request->hasFile('portrait')) {
             if ($character->portrait_path) {

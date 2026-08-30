@@ -7,13 +7,14 @@ import { RuneDivider } from '@/Components/RuneDivider'
 import { ClassFeatures } from '@/Components/ClassFeatures'
 import { ClassPathFields } from '@/Components/ClassPathFields'
 import { KitField } from '@/Components/KitField'
+import { PsionicistSheetFields } from '@/Components/PsionicistSheetFields'
 import { SpellsTab } from '@/Components/SpellsTab'
 import { Campaign, Character } from '@/types'
 import {
   ALIGNMENTS, NONWEAPON_PROFICIENCY_SUGGESTIONS, PRIEST_SPHERES, RACES,
   SAVE_CATEGORIES, WEAPON_PROFICIENCY_SUGGESTIONS,
   ClassPath, anyCaster, combinedHitDie, combinedSavingThrows, combinedThac0,
-  formatSigned, normalizeClassLevels, primaryAdjustment,
+  formatSigned, hasPsionicist, normalizeClassLevels, primaryAdjustment,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -72,6 +73,9 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
     appearance_description: character.appearance_description ?? '',
     campaign_id: character.campaign_id?.toString() ?? '',
     class_features: (character.class_features ?? {}) as Record<string, unknown>,
+    psp_current: character.psp_current ?? null,
+    psp_max: character.psp_max ?? null,
+    psionic_powers: character.psionic_powers ?? [],
     portrait: null as File | null,
     portrait_style: (character.portrait_style ?? 'lifelike') as 'lifelike' | 'renaissance' | 'comic',
   })
@@ -334,6 +338,17 @@ export default function Edit({ campaign, character, campaigns, imageGenProvider 
             value={data.subclass}
             onChange={value => setData('subclass', value)}
           />
+
+          {hasPsionicist(data.class_levels) && (
+            <PsionicistSheetFields
+              pspCurrent={data.psp_current}
+              pspMax={data.psp_max}
+              powers={data.psionic_powers}
+              onPspCurrent={value => setData('psp_current', value)}
+              onPspMax={value => setData('psp_max', value)}
+              onPowers={value => setData('psionic_powers', value)}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Input label="Origin / notes" value={data.background} onChange={e => setData('background', e.target.value)} placeholder="Home region, patron…" />

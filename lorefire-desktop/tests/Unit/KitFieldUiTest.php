@@ -73,4 +73,30 @@ class KitFieldUiTest extends TestCase
         $this->assertStringNotContainsString('Total Sciences', $php);
         $this->assertStringNotContainsString('Def. Modes', $php);
     }
+
+    public function test_psionicist_sheet_fields_are_gated_and_have_no_handbook_excerpts(): void
+    {
+        $pages = [
+            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Create.tsx',
+            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Edit.tsx',
+            dirname(__DIR__, 2).'/resources/js/Pages/Characters/Show.tsx',
+        ];
+        foreach ($pages as $path) {
+            $tsx = file_get_contents($path);
+            $this->assertIsString($tsx);
+            $this->assertStringContainsString('hasPsionicist', $tsx);
+            $this->assertStringContainsString('data-testid="psionicist-sheet"', $tsx);
+            $this->assertStringNotContainsString('Total Sciences', $tsx);
+            $this->assertStringNotContainsString('Total Devotions', $tsx);
+            $this->assertStringNotContainsString('Power Score', $tsx);
+        }
+
+        $sheet = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/PsionicistSheetFields.tsx');
+        $this->assertIsString($sheet);
+        $this->assertStringContainsString('psionic-discipline-labels', $sheet);
+        $this->assertStringContainsString('PSIONIC_DISCIPLINES', $sheet);
+        $this->assertStringNotContainsString('science', strtolower($sheet));
+        $this->assertStringNotContainsString('devotion', strtolower($sheet));
+        $this->assertStringNotContainsString('power score', strtolower($sheet));
+    }
 }

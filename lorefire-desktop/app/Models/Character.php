@@ -62,6 +62,9 @@ class Character extends Model
         'portrait_style',
         'imported_data',
         'class_features',
+        'psp_current',
+        'psp_max',
+        'psionic_powers',
     ];
 
     protected $casts = [
@@ -74,6 +77,9 @@ class Character extends Model
         'memorization_used' => 'array',
         'imported_data' => 'array',
         'class_features' => 'array',
+        'psp_current' => 'integer',
+        'psp_max' => 'integer',
+        'psionic_powers' => 'array',
     ];
 
     public function campaign(): BelongsTo

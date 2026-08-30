@@ -10,7 +10,7 @@ import { Input } from '@/Components/Input'
 import { Campaign, Character, InventoryItem, InventorySnapshot } from '@/types'
 import { ConditionManager } from '@/Components/ConditionManager'
 import {
-  SAVE_CATEGORIES, anyCaster, formatSigned, normalizeClassLevels, primaryAdjustment, vitalityState,
+  SAVE_CATEGORIES, anyCaster, formatSigned, hasPsionicist, normalizeClassLevels, primaryAdjustment, vitalityState,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -194,6 +194,12 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
             <StatBlock label="THAC0" value={character.thac0} highlight />
             <StatBlock label="MV" value={character.speed} />
             <StatBlock label="HD" value={character.hit_die ?? '—'} />
+            {hasPsionicist(classEntries) && (
+              <StatBlock
+                label="PSP"
+                value={`${character.psp_current ?? '—'}/${character.psp_max ?? '—'}`}
+              />
+            )}
           </div>
 
           <div className="shrink-0 flex gap-2 flex-wrap justify-end">
@@ -295,6 +301,14 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
                     {(character.nonweapon_proficiencies ?? []).join(', ') || 'None recorded'}
                   </p>
                 </div>
+                {hasPsionicist(classEntries) && (
+                  <div data-testid="psionicist-sheet">
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Known powers</p>
+                    <p className="text-xs text-[var(--color-text-base)]">
+                      {(character.psionic_powers ?? []).filter(Boolean).join(', ') || 'None recorded'}
+                    </p>
+                  </div>
+                )}
                 {character.priest_spheres && (
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Spheres</p>

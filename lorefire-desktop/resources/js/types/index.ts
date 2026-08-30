@@ -70,6 +70,9 @@ export interface Character {
   portrait_generation_status: 'idle' | 'generating' | 'done' | 'failed'
   portrait_style: 'lifelike' | 'renaissance' | 'comic'
   class_features: Record<string, unknown> | null
+  psp_current: number | null
+  psp_max: number | null
+  psionic_powers: string[] | null
   campaign?: Campaign
   spells?: CharacterSpell[]
   inventory_items?: InventoryItem[]
