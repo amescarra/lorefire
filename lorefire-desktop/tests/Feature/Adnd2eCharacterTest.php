@@ -335,13 +335,13 @@ class Adnd2eCharacterTest extends TestCase
             'current_hp' => $character->current_hp,
             'armor_class' => $character->armor_class,
             'speed' => $character->speed,
-            'experience_points' => $character->experience_points,
+            'experience_points' => (int) ($character->experience_points ?? 0),
             'thac0' => $character->thac0,
-            'copper' => $character->copper,
-            'silver' => $character->silver,
-            'electrum' => $character->electrum,
-            'gold' => $character->gold,
-            'platinum' => $character->platinum,
+            'copper' => (int) ($character->copper ?? 0),
+            'silver' => (int) ($character->silver ?? 0),
+            'electrum' => (int) ($character->electrum ?? 0),
+            'gold' => (int) ($character->gold ?? 0),
+            'platinum' => (int) ($character->platinum ?? 0),
         ])->assertRedirect();
 
         $character->refresh();
@@ -381,13 +381,13 @@ class Adnd2eCharacterTest extends TestCase
             'current_hp' => $character->current_hp,
             'armor_class' => $character->armor_class,
             'speed' => $character->speed,
-            'experience_points' => $character->experience_points,
+            'experience_points' => (int) ($character->experience_points ?? 0),
             'thac0' => $character->thac0,
-            'copper' => $character->copper,
-            'silver' => $character->silver,
-            'electrum' => $character->electrum,
-            'gold' => $character->gold,
-            'platinum' => $character->platinum,
+            'copper' => (int) ($character->copper ?? 0),
+            'silver' => (int) ($character->silver ?? 0),
+            'electrum' => (int) ($character->electrum ?? 0),
+            'gold' => (int) ($character->gold ?? 0),
+            'platinum' => (int) ($character->platinum ?? 0),
         ])->assertSessionHasErrors('class_levels.0.level');
     }
 
