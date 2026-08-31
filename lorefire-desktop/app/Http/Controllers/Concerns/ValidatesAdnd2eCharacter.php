@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Models\Character;
 use App\Support\Adnd2e;
+use Illuminate\Validation\ValidationException;
 
 trait ValidatesAdnd2eCharacter
 {
@@ -80,7 +82,37 @@ trait ValidatesAdnd2eCharacter
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    protected function applyEditionDefaults(array $data): array
+    protected function applyEditionDefaults(array $data, ?Character $existing = null): array
+    {
+        $data = $this->finalizeClassEntries($data);
+        $this->assertSuorNorDualSwitch($data, $existing);
+
+        $defaults = Adnd2e::defaultsForEntries(
+            $data['class_levels'],
+            (string) ($data['race'] ?? 'Human'),
+            (int) ($data['wisdom'] ?? 10),
+            $data['subclass'] ?? null,
+            (string) $data['class_path'],
+        );
+
+        foreach ($defaults as $key => $value) {
+            if (! array_key_exists($key, $data) || $data[$key] === null || $data[$key] === '') {
+                $data[$key] = $value;
+            }
+        }
+
+        if (! isset($data['current_hp']) && isset($data['max_hp'])) {
+            $data['current_hp'] = $data['max_hp'];
+        }
+
+        return $this->normalizePsionicSheet($data);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function finalizeClassEntries(array $data): array
     {
         $path = (string) ($data['class_path'] ?? 'single');
         $entries = Adnd2e::normalizeClassLevels(
@@ -98,25 +130,40 @@ trait ValidatesAdnd2eCharacter
         $data['class'] = Adnd2e::displayClassName($entries, $path);
         $data['level'] = Adnd2e::displayLevel($entries, $path);
 
-        $defaults = Adnd2e::defaultsForEntries(
-            $entries,
-            (string) ($data['race'] ?? 'Human'),
-            (int) ($data['wisdom'] ?? 10),
-            $data['subclass'] ?? null,
-            $path,
-        );
+        return $data;
+    }
 
-        foreach ($defaults as $key => $value) {
-            if (! array_key_exists($key, $data) || $data[$key] === null || $data[$key] === '') {
-                $data[$key] = $value;
-            }
+    /**
+     * Reject beginning a second class when the original is below 6th.
+     * Existing stored dual sheets that already violate the gate are kept.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function assertSuorNorDualSwitch(array $data, ?Character $existing = null): void
+    {
+        $path = (string) ($data['class_path'] ?? 'single');
+        $entries = $data['class_levels'] ?? [];
+        if ($path !== 'dual' || ! is_array($entries) || count($entries) < 2) {
+            return;
         }
 
-        if (! isset($data['current_hp']) && isset($data['max_hp'])) {
-            $data['current_hp'] = $data['max_hp'];
+        $originalLevel = (int) ($entries[0]['level'] ?? 1);
+        if (Adnd2e::canBeginNewClass($originalLevel)) {
+            return;
         }
 
-        return $this->normalizePsionicSheet($data);
+        if ($existing && Adnd2e::hasStoredDualSwitch(
+            $existing->class_path,
+            $existing->class_levels,
+            (string) $existing->class,
+            (int) $existing->level,
+        )) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'class_levels.0.level' => 'A new class may begin only after the original class is at least 6th level (Suor Nor house rule).',
+        ]);
     }
 
     /**

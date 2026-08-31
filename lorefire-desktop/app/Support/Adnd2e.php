@@ -36,9 +36,12 @@ class Adnd2e
         'Psionicist',
     ];
 
+    /** Suor Nor house dual: original class must be this level before a new class may begin. */
+    public const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6;
+
     /**
-     * Discipline name labels only (kit suggestions). No power text, PSP tables,
-     * sciences, or devotions.
+     * Discipline name labels for the typed-power datalist only.
+     * Not kits, specialist schools, or subclass suggestions.
      */
     public const PSIONIC_DISCIPLINES = [
         'Clairsentience',
@@ -349,6 +352,52 @@ class Adnd2e
     }
 
     /**
+     * Suor Nor house dual-class (not PHB human-only dual-class).
+     * A character may begin a new class only after the original is at least 6th.
+     */
+    public static function canBeginNewClass(int $originalLevel): bool
+    {
+        return $originalLevel >= self::HOUSE_DUAL_MIN_ORIGINAL_LEVEL;
+    }
+
+    /**
+     * Resume advancing the original class when the new class is at N − 1,
+     * where N is the original class's level at the moment of the switch.
+     * Not the PHB "must exceed original level" gate.
+     */
+    public static function canResumeOriginalClass(int $originalLevelAtSwitch, int $newLevel): bool
+    {
+        return $newLevel >= $originalLevelAtSwitch - 1;
+    }
+
+    /**
+     * @param  array<int, array{class: string, level: int}>  $entries  original first, new second
+     */
+    public static function dualResumeAllowed(array $entries): bool
+    {
+        if (count($entries) < 2) {
+            return false;
+        }
+
+        return self::canResumeOriginalClass((int) $entries[0]['level'], (int) $entries[1]['level']);
+    }
+
+    /**
+     * True when a stored sheet is already dual with two class entries
+     * (grandfather existing rows that violate the 6th-level start gate).
+     *
+     * @param  array<int, mixed>|null  $classLevels
+     */
+    public static function hasStoredDualSwitch(?string $path, ?array $classLevels, string $class = '', int $level = 1): bool
+    {
+        if ($path !== 'dual') {
+            return false;
+        }
+
+        return count(self::normalizeClassLevels($classLevels, $class, $level, 'dual')) >= 2;
+    }
+
+    /**
      * @param  array<int, array{class: string, level: int}>  $entries
      */
     public static function combinedThac0(array $entries): int
@@ -471,8 +520,8 @@ class Adnd2e
     }
 
     /**
-     * Specialist schools (if a mage is present), discipline name labels
-     * (if a Psionicist is present), plus eligible racial kits.
+     * Specialist schools (if a mage is present) plus eligible racial kits.
+     * Discipline names are not kits.
      *
      * @param  array<int, mixed>  $entries
      * @return list<string>

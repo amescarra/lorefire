@@ -51,21 +51,23 @@ class KitFieldUiTest extends TestCase
         $this->assertNotContains('Bladesinger', $options);
     }
 
-    public function test_psionicist_kit_offers_discipline_labels_only(): void
+    public function test_psionicist_kit_is_optional_free_text_not_disciplines(): void
     {
         $tsx = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/KitField.tsx');
         $this->assertIsString($tsx);
-        $this->assertStringContainsString('optgroup label="Psionic disciplines"', $tsx);
-        $this->assertStringNotContainsString('science', strtolower($tsx));
-        $this->assertStringNotContainsString('devotion', strtolower($tsx));
-        $this->assertStringNotContainsString('power score', strtolower($tsx));
+        $this->assertStringNotContainsString('PSIONIC_DISCIPLINES', $tsx);
+        $this->assertStringNotContainsString('Psionic disciplines', $tsx);
+        $this->assertStringNotContainsString('hasPsionicist', $tsx);
+        $this->assertStringContainsString("placeholder=\"Optional kit\"", $tsx);
 
         $options = Adnd2e::suggestedSubclassOptions('Human', [
             ['class' => 'Psionicist', 'level' => 9],
         ]);
-        $this->assertContains('Telepathy', $options);
-        $this->assertContains('Metapsionics', $options);
-        $this->assertNotContains('Bladesinger', $options);
+        $this->assertNotContains('Telepathy', $options);
+        $this->assertNotContains('Metapsionics', $options);
+        $this->assertNotContains('Clairsentience', $options);
+        $this->assertNotContains('Psychokinesis', $options);
+        $this->assertSame([], $options);
 
         $php = file_get_contents(dirname(__DIR__, 2).'/app/Support/Adnd2e.php');
         $this->assertIsString($php);
@@ -102,5 +104,21 @@ class KitFieldUiTest extends TestCase
         $this->assertStringNotContainsString('science', strtolower($sheet));
         $this->assertStringNotContainsString('devotion', strtolower($sheet));
         $this->assertStringNotContainsString('power score', strtolower($sheet));
+    }
+
+    public function test_class_path_fields_list_psionicist_and_suor_nor_dual_hint(): void
+    {
+        $tsx = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/ClassPathFields.tsx');
+        $this->assertIsString($tsx);
+        $this->assertStringContainsString('CLASSES.map', $tsx);
+        $this->assertStringContainsString('Suor Nor house rule', $tsx);
+        $this->assertStringContainsString('N − 1', $tsx);
+        $this->assertStringNotContainsString('typically human', $tsx);
+
+        $this->assertContains('Psionicist', Adnd2e::CLASSES);
+        $this->assertSame(
+            ['Fighter', 'Paladin', 'Ranger', 'Mage', 'Cleric', 'Druid', 'Thief', 'Bard', 'Psionicist'],
+            Adnd2e::CLASSES
+        );
     }
 }

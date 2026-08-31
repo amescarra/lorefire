@@ -1,6 +1,6 @@
 import React from 'react'
 import { Input, Select } from '@/Components/Input'
-import { CLASSES, ClassEntry, ClassPath } from '@/lib/adnd2e'
+import { CLASSES, ClassEntry, ClassPath, canBeginNewClass, canResumeOriginalClass } from '@/lib/adnd2e'
 
 interface Props {
   path: ClassPath
@@ -25,7 +25,7 @@ export function ClassPathFields({ path, entries, onPath, onEntries }: Props) {
         onPath(next)
         if (next === 'single') onEntries([entries[0] ?? { class: '', level: 1 }])
         if (next === 'dual') onEntries([
-          entries[0] ?? { class: 'Fighter', level: 5 },
+          entries[0] ?? { class: 'Fighter', level: 6 },
           entries[1] ?? { class: 'Mage', level: 1 },
         ])
         if (next === 'multi') onEntries([
@@ -45,7 +45,19 @@ export function ClassPathFields({ path, entries, onPath, onEntries }: Props) {
       )}
       {path === 'dual' && (
         <p className="text-[10px] text-[var(--color-text-dim)]">
-          Dual-class (typically human): original class first, current class second.
+          Suor Nor house rule: begin a new class only after the original is 6th. Resume the original when the new class reaches N − 1 (N = original level at the switch). Not human-only; not PHB “must exceed original.” Original class first, new class second.
+        </p>
+      )}
+      {path === 'dual' && rows[0] && !canBeginNewClass(Number(rows[0].level) || 0) && (
+        <p className="text-[10px] text-[var(--color-danger)]">
+          Original class must be at least 6th to begin a new class.
+        </p>
+      )}
+      {path === 'dual' && rows[0] && rows[1] && canBeginNewClass(Number(rows[0].level) || 0) && (
+        <p className="text-[10px] text-[var(--color-text-dim)]">
+          {canResumeOriginalClass(Number(rows[0].level) || 0, Number(rows[1].level) || 0)
+            ? 'New class is at N − 1 or higher — resuming the original class is allowed.'
+            : 'Until the new class reaches N − 1, it is the active class (original abilities stay on the sheet).'}
         </p>
       )}
 

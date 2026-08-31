@@ -4,7 +4,7 @@ export const RACES = ['Human', 'Dwarf', 'Elf', 'Gnome', 'Half-Elf', 'Halfling', 
 
 export const CLASSES = ['Fighter', 'Paladin', 'Ranger', 'Mage', 'Cleric', 'Druid', 'Thief', 'Bard', 'Psionicist'] as const
 
-/** Discipline name labels only. No power text, PSP tables, or handbook lists. */
+/** Discipline name labels for the typed-power datalist only. Not kits. */
 export const PSIONIC_DISCIPLINES = [
   'Clairsentience',
   'Psychokinesis',
@@ -160,8 +160,7 @@ export function suggestedSubclassOptions(race: string, entries: Array<{ class?: 
   const kits = suggestedRacialKits(race, entries)
   const names = kitClassNames(entries)
   const schools = names.includes('Mage') ? [...SPECIALIST_SCHOOLS] : []
-  const disciplines = names.includes('Psionicist') ? [...PSIONIC_DISCIPLINES] : []
-  return Array.from(new Set([...schools, ...disciplines, ...kits]))
+  return Array.from(new Set([...schools, ...kits]))
 }
 
 export const ALIGNMENTS = [
@@ -210,6 +209,9 @@ export const CONDITIONS_2E = [
 ]
 
 export const DEATH_THRESHOLD = -10
+
+/** Suor Nor house dual: original class must be this level before a new class may begin. */
+export const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6
 
 export type ClassGroup = 'warrior' | 'priest' | 'rogue' | 'wizard'
 
@@ -482,6 +484,24 @@ export function displayLevel(entries: ClassEntry[], path: ClassPath = 'single'):
   if (entries.length === 0) return 1
   if (path === 'dual') return entries[entries.length - 1].level
   return Math.max(...entries.map(e => e.level))
+}
+
+/** Suor Nor house dual: begin a new class only after the original is 6th. */
+export function canBeginNewClass(originalLevel: number): boolean {
+  return originalLevel >= HOUSE_DUAL_MIN_ORIGINAL_LEVEL
+}
+
+/**
+ * Resume the original class when the new class is at N − 1
+ * (N = original level at the switch). Not PHB exceed-original.
+ */
+export function canResumeOriginalClass(originalLevelAtSwitch: number, newLevel: number): boolean {
+  return newLevel >= originalLevelAtSwitch - 1
+}
+
+export function dualResumeAllowed(entries: ClassEntry[]): boolean {
+  if (entries.length < 2) return false
+  return canResumeOriginalClass(entries[0].level, entries[1].level)
 }
 
 export function combinedThac0(entries: ClassEntry[]): number {

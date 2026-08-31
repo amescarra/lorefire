@@ -243,13 +243,13 @@ class Adnd2eCharacterTest extends TestCase
         $this->post(route('campaigns.characters.store', $campaign), [
             'name' => 'Logain Dual',
             'race' => 'Human',
-            'class' => 'Fighter',
+            'class' => 'Psionicist',
             'class_path' => 'dual',
             'class_levels' => [
-                ['class' => 'Fighter', 'level' => 10],
                 ['class' => 'Psionicist', 'level' => 9],
+                ['class' => 'Fighter', 'level' => 10],
             ],
-            'level' => 9,
+            'level' => 10,
             'alignment' => 'Lawful Neutral',
             'strength' => 16,
             'dexterity' => 12,
@@ -257,17 +257,138 @@ class Adnd2eCharacterTest extends TestCase
             'intelligence' => 14,
             'wisdom' => 16,
             'charisma' => 10,
+            'psp_max' => 40,
+            'psp_current' => 28,
+            'psionic_powers' => ['Sight', 'Nudge'],
         ])->assertRedirect();
 
         $dual = Character::query()->where('name', 'Logain Dual')->firstOrFail();
         $this->assertSame('dual', $dual->class_path);
-        $this->assertSame('Fighter → Psionicist', $dual->class);
-        $this->assertSame(9, $dual->level);
+        $this->assertSame('Psionicist → Fighter', $dual->class);
+        $this->assertSame(10, $dual->level);
         $this->assertSame([
-            ['class' => 'Fighter', 'level' => 10],
             ['class' => 'Psionicist', 'level' => 9],
+            ['class' => 'Fighter', 'level' => 10],
         ], $dual->class_levels);
+        $this->assertNull($dual->subclass);
         $this->assertSame(11, $dual->thac0);
+        $this->assertSame(40, $dual->psp_max);
+        $this->assertSame(['Sight', 'Nudge'], $dual->psionic_powers);
+    }
+
+    public function test_dual_class_rejects_original_below_sixth_on_create(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Too Early',
+            'race' => 'Elf',
+            'class' => 'Fighter',
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 5],
+                ['class' => 'Mage', 'level' => 1],
+            ],
+            'level' => 1,
+            'strength' => 16,
+            'dexterity' => 14,
+            'constitution' => 12,
+            'intelligence' => 14,
+            'wisdom' => 10,
+            'charisma' => 10,
+        ])->assertSessionHasErrors('class_levels.0.level');
+    }
+
+    public function test_existing_dual_below_sixth_is_not_blocked_on_edit(): void
+    {
+        $campaign = Campaign::factory()->create();
+        $character = Character::factory()->create([
+            'campaign_id' => $campaign->id,
+            'name' => 'Grandfathered Dual',
+            'race' => 'Elf',
+            'class' => 'Fighter → Mage',
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 4],
+                ['class' => 'Mage', 'level' => 1],
+            ],
+            'level' => 1,
+        ]);
+
+        $this->put(route('campaigns.characters.update', [$campaign, $character]), [
+            'name' => $character->name,
+            'race' => $character->race,
+            'class' => 'Fighter',
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 4],
+                ['class' => 'Mage', 'level' => 1],
+            ],
+            'level' => 1,
+            'strength' => $character->strength,
+            'dexterity' => $character->dexterity,
+            'constitution' => $character->constitution,
+            'intelligence' => $character->intelligence,
+            'wisdom' => $character->wisdom,
+            'charisma' => $character->charisma,
+            'max_hp' => $character->max_hp,
+            'current_hp' => $character->current_hp,
+            'armor_class' => $character->armor_class,
+            'speed' => $character->speed,
+            'experience_points' => $character->experience_points,
+            'thac0' => $character->thac0,
+            'copper' => $character->copper,
+            'silver' => $character->silver,
+            'electrum' => $character->electrum,
+            'gold' => $character->gold,
+            'platinum' => $character->platinum,
+        ])->assertRedirect();
+
+        $character->refresh();
+        $this->assertSame('dual', $character->class_path);
+        $this->assertSame('Fighter → Mage', $character->class);
+        $this->assertSame(4, $character->class_levels[0]['level']);
+    }
+
+    public function test_edit_rejects_beginning_a_second_class_below_sixth(): void
+    {
+        $campaign = Campaign::factory()->create();
+        $character = Character::factory()->create([
+            'campaign_id' => $campaign->id,
+            'class' => 'Fighter',
+            'class_path' => 'single',
+            'class_levels' => [['class' => 'Fighter', 'level' => 5]],
+            'level' => 5,
+        ]);
+
+        $this->put(route('campaigns.characters.update', [$campaign, $character]), [
+            'name' => $character->name,
+            'race' => $character->race,
+            'class' => 'Fighter',
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 5],
+                ['class' => 'Mage', 'level' => 1],
+            ],
+            'level' => 1,
+            'strength' => $character->strength,
+            'dexterity' => $character->dexterity,
+            'constitution' => $character->constitution,
+            'intelligence' => $character->intelligence,
+            'wisdom' => $character->wisdom,
+            'charisma' => $character->charisma,
+            'max_hp' => $character->max_hp,
+            'current_hp' => $character->current_hp,
+            'armor_class' => $character->armor_class,
+            'speed' => $character->speed,
+            'experience_points' => $character->experience_points,
+            'thac0' => $character->thac0,
+            'copper' => $character->copper,
+            'silver' => $character->silver,
+            'electrum' => $character->electrum,
+            'gold' => $character->gold,
+            'platinum' => $character->platinum,
+        ])->assertSessionHasErrors('class_levels.0.level');
     }
 
     public function test_condition_manager_adds_and_clears_2e_states(): void

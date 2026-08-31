@@ -34,6 +34,8 @@ class OraclePromptTest extends TestCase
         $this->assertStringContainsString('## Campaign Data', $prompt);
         $this->assertStringContainsString('Empty Table', $prompt);
         $this->assertStringContainsString('do not quote copyrighted rulebook text', $prompt);
+        $this->assertStringContainsString('Suor Nor house switch', $prompt);
+        $this->assertStringContainsString('N − 1', $prompt);
     }
 
     public function test_controller_prompt_includes_notes_and_backstory(): void

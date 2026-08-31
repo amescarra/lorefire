@@ -151,9 +151,8 @@ class Adnd2eRacialKits
     {
         $kits = self::suggestedNames($race, $entries);
         $schools = self::hasMage($entries) ? Adnd2e::SPECIALIST_SCHOOLS : [];
-        $disciplines = self::hasPsionicist($entries) ? Adnd2e::PSIONIC_DISCIPLINES : [];
 
-        return array_values(array_unique(array_merge($schools, $disciplines, $kits)));
+        return array_values(array_unique(array_merge($schools, $kits)));
     }
 
     /**

@@ -22,8 +22,13 @@ class Adnd2eOracleBriefingTest extends TestCase
         $this->assertStringContainsString('-10', $prompt);
         $this->assertStringContainsString('Bladesinger', $prompt);
         $this->assertStringContainsString('Psionicist', $prompt);
-        $this->assertStringContainsString('PSP totals and powers are not simulated', $prompt);
+        $this->assertStringContainsString('PSP totals and typed power names are sheet fields', $prompt);
         $this->assertStringContainsString('Do not invent 5th Edition psionics', $prompt);
+        $this->assertStringContainsString('Do not treat Psionicist as a kit', $prompt);
+        $this->assertStringContainsString('Suor Nor house switch', $prompt);
+        $this->assertStringContainsString('at least 6th', $prompt);
+        $this->assertStringContainsString('N − 1', $prompt);
+        $this->assertStringNotContainsString('typically human', $prompt);
         $this->assertStringNotContainsString('## Campaign Data', $prompt);
         $this->assertLessThan(1500, str_word_count($prompt));
     }

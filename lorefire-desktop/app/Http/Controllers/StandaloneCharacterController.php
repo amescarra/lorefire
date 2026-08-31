@@ -85,7 +85,10 @@ class StandaloneCharacterController extends Controller
 
     public function update(Request $request, Character $character): RedirectResponse
     {
-        $data = $this->normalizePsionicSheet($request->validate($this->characterUpdateRules()));
+        $data = $this->finalizeClassEntries(
+            $this->normalizePsionicSheet($request->validate($this->characterUpdateRules()))
+        );
+        $this->assertSuorNorDualSwitch($data, $character);
 
         if ($request->hasFile('portrait')) {
             if ($character->portrait_path) {
