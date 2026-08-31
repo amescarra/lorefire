@@ -213,6 +213,9 @@ export const DEATH_THRESHOLD = -10
 /** Suor Nor house dual: original class must be this level before a new class may begin. */
 export const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6
 
+/** This table switches at 6th; resume is 6 − 1 = 5th in the new class. */
+export const HOUSE_DUAL_RESUME_NEW_LEVEL = 5
+
 export type ClassGroup = 'warrior' | 'priest' | 'rogue' | 'wizard'
 
 export function normalizeClass(characterClass: string): string {
@@ -492,16 +495,16 @@ export function canBeginNewClass(originalLevel: number): boolean {
 }
 
 /**
- * Resume the original class when the new class is at N − 1
- * (N = original level at the switch). Not PHB exceed-original.
+ * Resume the original class when the new class is 5th.
+ * originalLevelAtSwitch is 6 on this table (6 − 1 = 5). Do not pass current original level.
  */
-export function canResumeOriginalClass(originalLevelAtSwitch: number, newLevel: number): boolean {
-  return newLevel >= originalLevelAtSwitch - 1
+export function canResumeOriginalClass(newLevel: number): boolean {
+  return newLevel >= HOUSE_DUAL_RESUME_NEW_LEVEL
 }
 
 export function dualResumeAllowed(entries: ClassEntry[]): boolean {
   if (entries.length < 2) return false
-  return canResumeOriginalClass(entries[0].level, entries[1].level)
+  return canResumeOriginalClass(entries[1].level)
 }
 
 export function combinedThac0(entries: ClassEntry[]): number {

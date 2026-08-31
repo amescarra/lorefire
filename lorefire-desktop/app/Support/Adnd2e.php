@@ -40,6 +40,12 @@ class Adnd2e
     public const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6;
 
     /**
+     * This table switches at 6th. Resume is that switch level minus one (5th
+     * in the new class). Do not use the original class's later level.
+     */
+    public const HOUSE_DUAL_RESUME_NEW_LEVEL = 5;
+
+    /**
      * Discipline name labels for the typed-power datalist only.
      * Not kits, specialist schools, or subclass suggestions.
      */
@@ -361,13 +367,13 @@ class Adnd2e
     }
 
     /**
-     * Resume advancing the original class when the new class is at N − 1,
-     * where N is the original class's level at the moment of the switch.
-     * Not the PHB "must exceed original level" gate.
+     * Resume the original class when the new class is 5th.
+     * originalLevelAtSwitch is 6 on this table; resume is 6 − 1 = 5.
+     * Do not pass the original class's current (later) level.
      */
-    public static function canResumeOriginalClass(int $originalLevelAtSwitch, int $newLevel): bool
+    public static function canResumeOriginalClass(int $newLevel): bool
     {
-        return $newLevel >= $originalLevelAtSwitch - 1;
+        return $newLevel >= self::HOUSE_DUAL_RESUME_NEW_LEVEL;
     }
 
     /**
@@ -379,7 +385,7 @@ class Adnd2e
             return false;
         }
 
-        return self::canResumeOriginalClass((int) $entries[0]['level'], (int) $entries[1]['level']);
+        return self::canResumeOriginalClass((int) $entries[1]['level']);
     }
 
     /**

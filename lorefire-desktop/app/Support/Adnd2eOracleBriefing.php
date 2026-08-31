@@ -70,7 +70,7 @@ class Adnd2eOracleBriefing
             '',
             '### Advancement and the kit field',
             '- Single-class: one class. Multi-class: classes advance together; combined THAC0 is the best (lowest); saves take the best (lowest) per category.',
-            '- Dual-class on this table is the Suor Nor house switch (available to humans and others): original class first, then the new class. A character may begin a new class only after the original is at least 6th. They cannot resume advancing the original until the new class is at N − 1, where N is the original class\'s level at the switch. Until then the new class is active; original abilities stay on the sheet. Do not apply PHB dual-class XP penalties or a must-exceed-original gate.',
+            '- Dual-class on this table is the Suor Nor house switch (humans and others): original class first, then the new class. Begin a new class at 6th in the original; switch back when the new class is 5th. Until then the new class is active; original abilities stay on the sheet. Do not apply PHB dual-class XP penalties.',
             '- Kit / specialist is one optional free-text field for every class, including Psionicist. Suggestions are names only, filtered by race and required class(es). Specialist schools ('.$schools.') appear for Mages. Racial-handbook kit names (for example Bladesinger) appear only when race and class path match — Bladesinger is Elf + Fighter/Mage, not a generic Mage/wizard-handbook kit. Do not invent kit benefit tables. Discipline names are not kits.',
             '- Weapon and non-weapon proficiencies on the sheet are names only.',
             '',

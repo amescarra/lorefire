@@ -140,18 +140,47 @@ class Adnd2eTest extends TestCase
         $this->assertSame('Psionicist → Fighter', Adnd2e::displayClassName($logain, 'dual'));
         $this->assertSame(10, Adnd2e::displayLevel($logain, 'dual'));
         $this->assertSame(11, Adnd2e::combinedThac0($logain));
-        $this->assertTrue(Adnd2e::canResumeOriginalClass(9, 10));
+        $this->assertTrue(Adnd2e::canResumeOriginalClass(10));
         $this->assertTrue(Adnd2e::dualResumeAllowed($logain));
     }
 
     public function test_suor_nor_house_dual_switch_gates(): void
     {
+        $this->assertSame(5, Adnd2e::HOUSE_DUAL_MIN_ORIGINAL_LEVEL - 1);
+        $this->assertSame(5, Adnd2e::HOUSE_DUAL_RESUME_NEW_LEVEL);
+
         $this->assertFalse(Adnd2e::canBeginNewClass(5));
         $this->assertTrue(Adnd2e::canBeginNewClass(6));
         $this->assertTrue(Adnd2e::canBeginNewClass(9));
-        $this->assertFalse(Adnd2e::canResumeOriginalClass(9, 7));
-        $this->assertTrue(Adnd2e::canResumeOriginalClass(9, 8));
-        $this->assertTrue(Adnd2e::canResumeOriginalClass(9, 10));
+
+        $atSwitch = Adnd2e::normalizeClassLevels([
+            ['class' => 'Psionicist', 'level' => 6],
+            ['class' => 'Fighter', 'level' => 1],
+        ], 'Psionicist', 6, 'dual');
+        $this->assertTrue(Adnd2e::canBeginNewClass(6));
+        $this->assertFalse(Adnd2e::canResumeOriginalClass(4));
+        $this->assertFalse(Adnd2e::dualResumeAllowed($atSwitch));
+
+        $fighter5 = Adnd2e::normalizeClassLevels([
+            ['class' => 'Psionicist', 'level' => 6],
+            ['class' => 'Fighter', 'level' => 5],
+        ], 'Psionicist', 6, 'dual');
+        $this->assertTrue(Adnd2e::canResumeOriginalClass(5));
+        $this->assertTrue(Adnd2e::dualResumeAllowed($fighter5));
+
+        $logain = Adnd2e::normalizeClassLevels([
+            ['class' => 'Psionicist', 'level' => 9],
+            ['class' => 'Fighter', 'level' => 10],
+        ], 'Psionicist', 9, 'dual');
+        $this->assertTrue(Adnd2e::dualResumeAllowed($logain));
+        $this->assertTrue(Adnd2e::canResumeOriginalClass(10));
+
+        $psi9fighter5 = Adnd2e::normalizeClassLevels([
+            ['class' => 'Psionicist', 'level' => 9],
+            ['class' => 'Fighter', 'level' => 5],
+        ], 'Psionicist', 9, 'dual');
+        $this->assertTrue(Adnd2e::dualResumeAllowed($psi9fighter5), 'Resume is 5th in the new class, not 9−1=8 of current original.');
+
         $this->assertFalse(Adnd2e::hasStoredDualSwitch('single', [['class' => 'Fighter', 'level' => 5]], 'Fighter', 5));
         $this->assertTrue(Adnd2e::hasStoredDualSwitch('dual', [
             ['class' => 'Fighter', 'level' => 4],

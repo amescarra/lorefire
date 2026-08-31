@@ -112,7 +112,7 @@ class KitFieldUiTest extends TestCase
         $this->assertIsString($tsx);
         $this->assertStringContainsString('CLASSES.map', $tsx);
         $this->assertStringContainsString('Suor Nor house rule', $tsx);
-        $this->assertStringContainsString('N − 1', $tsx);
+        $this->assertStringContainsString('when the new class is 5th', $tsx);
         $this->assertStringNotContainsString('typically human', $tsx);
 
         $this->assertContains('Psionicist', Adnd2e::CLASSES);

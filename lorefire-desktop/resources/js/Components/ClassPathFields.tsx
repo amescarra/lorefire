@@ -45,7 +45,7 @@ export function ClassPathFields({ path, entries, onPath, onEntries }: Props) {
       )}
       {path === 'dual' && (
         <p className="text-[10px] text-[var(--color-text-dim)]">
-          Suor Nor house rule: begin a new class only after the original is 6th. Resume the original when the new class reaches N − 1 (N = original level at the switch). Not human-only; not PHB “must exceed original.” Original class first, new class second.
+          Suor Nor house rule: begin a new class at 6th in the original; switch back when the new class is 5th. Not human-only; not PHB “must exceed original.” Original class first, new class second.
         </p>
       )}
       {path === 'dual' && rows[0] && !canBeginNewClass(Number(rows[0].level) || 0) && (
@@ -55,9 +55,9 @@ export function ClassPathFields({ path, entries, onPath, onEntries }: Props) {
       )}
       {path === 'dual' && rows[0] && rows[1] && canBeginNewClass(Number(rows[0].level) || 0) && (
         <p className="text-[10px] text-[var(--color-text-dim)]">
-          {canResumeOriginalClass(Number(rows[0].level) || 0, Number(rows[1].level) || 0)
-            ? 'New class is at N − 1 or higher — resuming the original class is allowed.'
-            : 'Until the new class reaches N − 1, it is the active class (original abilities stay on the sheet).'}
+          {canResumeOriginalClass(Number(rows[1].level) || 0)
+            ? 'New class is 5th or higher — resuming the original class is allowed.'
+            : 'Until the new class is 5th, it is the active class (original abilities stay on the sheet).'}
         </p>
       )}
 
