@@ -15,18 +15,14 @@ class InventoryItem extends Model
         'weight',
         'value_cp',
         'equipped',
-        'attuned',
         'is_magical',
-        'requires_attunement',
         'description',
         'properties',
     ];
 
     protected $casts = [
         'equipped' => 'boolean',
-        'attuned' => 'boolean',
         'is_magical' => 'boolean',
-        'requires_attunement' => 'boolean',
         'properties' => 'array',
         'weight' => 'decimal:2',
     ];

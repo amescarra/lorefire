@@ -41,8 +41,15 @@ export function SplashOverlay() {
       router.reload({ only: ['python_setup'] })
     }, 2000)
 
+    // Do not block the UI for the whole first-run install (can be 10–20 min).
+    const dismiss = setTimeout(() => {
+      setOverlayState(current => (current === 'visible' ? 'fading' : current))
+      setTimeout(() => setOverlayState('hidden'), 700)
+    }, 8000)
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      clearTimeout(dismiss)
     }
   }, [overlayState])
 
@@ -84,6 +91,14 @@ export function SplashOverlay() {
         <p className="text-xs tracking-widest uppercase font-mono" style={{ color: 'var(--color-text-dim)' }}>
           Setting up transcription engine…
         </p>
+        {python_setup?.log && (
+          <p
+            className="max-w-md text-center text-[10px] font-mono leading-relaxed px-4"
+            style={{ color: 'var(--color-text-dim)', opacity: 0.8 }}
+          >
+            {python_setup.log.trim().split('\n').filter(Boolean).slice(-1)[0]}
+          </p>
+        )}
       </div>
 
       {/* Animated dots */}

@@ -9,7 +9,6 @@ use App\Http\Controllers\CharacterImageController;
 use App\Http\Controllers\CharacterRestController;
 use App\Http\Controllers\CharacterSpellController;
 use App\Http\Controllers\CharacterSpellSlotsController;
-use App\Http\Controllers\DndBeyondImportController;
 use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\EncounterController;
 use App\Http\Controllers\GameSessionController;
@@ -24,8 +23,10 @@ use App\Http\Controllers\StorageFileController;
 use App\Http\Controllers\ChunkedAudioController;
 use App\Http\Controllers\TranscriptionController;
 use App\Http\Controllers\CharacterClassFeaturesController;
+use App\Http\Controllers\CharacterConditionController;
 use App\Http\Controllers\CharacterHpController;
 use App\Http\Controllers\LiveSessionController;
+use App\Http\Controllers\LiveSheetUpdateController;
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -60,14 +61,10 @@ Route::get('campaigns/{campaign}/party-portrait-status', [CampaignPartyImageCont
 
 // Standalone characters (top-level, no campaign required)
 Route::resource('characters', StandaloneCharacterController::class);
-Route::post('characters/{character}/import-dnd-beyond', [DndBeyondImportController::class, 'importStandalone'])
-    ->name('characters.import-dnd-beyond');
-Route::post('characters/{character}/rest/short', [CharacterRestController::class, 'shortRest'])
-    ->name('characters.rest.short');
-Route::post('characters/{character}/rest/long', [CharacterRestController::class, 'longRest'])
-    ->name('characters.rest.long');
-Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'update'])
-    ->name('characters.spell-slots.update');
+Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnight'])
+    ->name('characters.rest.overnight');
+Route::patch('characters/{character}/memorization', [CharacterSpellSlotsController::class, 'update'])
+    ->name('characters.memorization.update');
 Route::patch('characters/{character}/hp', [CharacterHpController::class, 'update'])
     ->name('characters.hp.update');
 Route::patch('characters/{character}/class-features', [CharacterClassFeaturesController::class, 'update'])
@@ -82,8 +79,10 @@ Route::delete('characters/{character}/inventory/{item}', [InventoryItemControlle
     ->name('characters.inventory.destroy');
 Route::patch('characters/{character}/inventory/{item}/equip', [InventoryItemController::class, 'toggleEquipped'])
     ->name('characters.inventory.equip');
-Route::patch('characters/{character}/inventory/{item}/attune', [InventoryItemController::class, 'toggleAttuned'])
-    ->name('characters.inventory.attune');
+Route::post('characters/{character}/conditions', [CharacterConditionController::class, 'store'])
+    ->name('characters.conditions.store');
+Route::delete('characters/{character}/conditions/{condition}', [CharacterConditionController::class, 'destroy'])
+    ->name('characters.conditions.destroy');
 
 // Spells (flat routes — work for both campaign and standalone characters)
 Route::post('characters/{character}/spells', [CharacterSpellController::class, 'store'])
@@ -92,6 +91,8 @@ Route::patch('characters/{character}/spells/{spell}', [CharacterSpellController:
     ->name('characters.spells.update');
 Route::patch('characters/{character}/spells/{spell}/prepare', [CharacterSpellController::class, 'togglePrepared'])
     ->name('characters.spells.prepare');
+Route::patch('characters/{character}/spells/{spell}/cast', [CharacterSpellController::class, 'toggleCast'])
+    ->name('characters.spells.cast');
 Route::delete('characters/{character}/spells/{spell}', [CharacterSpellController::class, 'destroy'])
     ->name('characters.spells.destroy');
 
@@ -125,14 +126,11 @@ Route::prefix('campaigns/{campaign}')->name('campaigns.')->group(function () {
     Route::resource('npcs', NpcController::class);
     Route::resource('sessions', GameSessionController::class);
     Route::get('sessions/{session}/live', [LiveSessionController::class, 'show'])->name('sessions.live');
-    Route::post('characters/{character}/import-dnd-beyond', [DndBeyondImportController::class, 'import'])
-        ->name('characters.import-dnd-beyond');
-    Route::post('characters/{character}/rest/short', [CharacterRestController::class, 'shortRestForCampaign'])
-        ->name('characters.rest.short');
-    Route::post('characters/{character}/rest/long', [CharacterRestController::class, 'longRestForCampaign'])
-        ->name('characters.rest.long');
-    Route::patch('characters/{character}/spell-slots', [CharacterSpellSlotsController::class, 'updateForCampaign'])
-        ->name('characters.spell-slots.update');
+    Route::get('sessions/{session}/live-state', [LiveSessionController::class, 'state'])->name('sessions.live-state');
+    Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnightForCampaign'])
+        ->name('characters.rest.overnight');
+    Route::patch('characters/{character}/memorization', [CharacterSpellSlotsController::class, 'updateForCampaign'])
+        ->name('characters.memorization.update');
     Route::patch('characters/{character}/class-features', [CharacterClassFeaturesController::class, 'updateForCampaign'])
         ->name('characters.class-features.update');
     // Speaker profiles (campaign-scoped)
@@ -164,6 +162,7 @@ Route::prefix('sessions/{session}')->name('sessions.')->group(function () {
     Route::delete('art-prompts',         [TranscriptionController::class, 'cancelArtPrompts'])->name('art-prompts.cancel');
     Route::post('extract-details',       [TranscriptionController::class, 'extractDetails'])->name('extract-details');
     Route::get('extraction-status',      [TranscriptionController::class, 'extractionStatus'])->name('extraction-status');
+    Route::post('live-sheet-updates',    [LiveSheetUpdateController::class, 'apply'])->name('live-sheet-updates');
     // Speaker profiles (session-scoped — WhisperX labels are per-session)
     Route::post('speakers',                [SpeakerProfileController::class, 'storeForSession'])->name('speakers.store');
     Route::patch('speakers/{speaker}',     [SpeakerProfileController::class, 'update'])->name('speakers.update');

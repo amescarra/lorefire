@@ -20,9 +20,7 @@ return new class extends Migration
             $table->decimal('weight', 6, 2)->default(0);
             $table->unsignedInteger('value_cp')->default(0); // value in copper pieces
             $table->boolean('equipped')->default(false);
-            $table->boolean('attuned')->default(false);
             $table->boolean('is_magical')->default(false);
-            $table->boolean('requires_attunement')->default(false);
             $table->text('description')->nullable();
             $table->json('properties')->nullable(); // weapon properties: finesse, thrown, etc.
             $table->timestamps();

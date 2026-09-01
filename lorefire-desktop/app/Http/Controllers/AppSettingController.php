@@ -20,8 +20,9 @@ class AppSettingController extends Controller
         'zai_model',         // e.g. glm-4-flash, glm-4.7, etc.
         'zai_plan',          // coding | standard — determines the base URL automatically
         'zai_base_url',      // derived and stored on save; never shown as a raw input
-        'whisperx_model',    // tiny | base | small | medium | large-v2
-        'whisperx_language', // en | auto
+        'whisperx_model',    // tiny | base | small | medium | large-v2 | large-v3 (never *.en)
+        'whisperx_languages', // csv allowlist, default en,es
+        'whisperx_language', // legacy single code; read-only fallback
         'huggingface_token', // required for speaker diarization
         'default_art_style',      // comic | lifelike
         'image_gen_provider',     // none | zai | openai | comfyui
@@ -39,6 +40,7 @@ class AppSettingController extends Controller
 
         return Inertia::render('Settings/Index', [
             'settings' => $settings,
+            'whisperx_languages' => \App\Support\WhisperxLanguages::csv(),
         ]);
     }
 
@@ -53,7 +55,8 @@ class AppSettingController extends Controller
             'zai_api_key'         => 'nullable|string|max:255',
             'zai_model'           => 'nullable|string|max:100',
             'zai_plan'            => 'nullable|in:coding,standard',
-            'whisperx_model'      => 'nullable|in:tiny,base,small,medium,large-v2',
+            'whisperx_model'      => 'nullable|string|max:40',
+            'whisperx_languages'  => 'nullable|string|max:20',
             'whisperx_language'   => 'nullable|string|max:10',
             'huggingface_token'   => 'nullable|string|max:255',
             'default_art_style'   => 'nullable|in:comic,lifelike',
@@ -68,6 +71,15 @@ class AppSettingController extends Controller
         $data['zai_base_url'] = $plan === 'standard'
             ? AppSetting::ZAI_STANDARD_URL
             : AppSetting::ZAI_CODING_URL;
+
+        if (array_key_exists('whisperx_model', $data)) {
+            $data['whisperx_model'] = \App\Support\WhisperxLanguages::coerceModel($data['whisperx_model'] ?? 'base');
+        }
+        if (array_key_exists('whisperx_languages', $data)) {
+            $data['whisperx_languages'] = \App\Support\WhisperxLanguages::csv(
+                \App\Support\WhisperxLanguages::parse($data['whisperx_languages'] ?? '')
+            );
+        }
 
         foreach ($data as $key => $value) {
             if (in_array($key, $this->allowedKeys)) {

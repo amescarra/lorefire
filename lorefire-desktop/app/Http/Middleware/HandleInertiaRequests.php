@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\AppSetting;
+use App\Services\PythonSetupService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -47,11 +47,19 @@ class HandleInertiaRequests extends Middleware
                 'error'   => fn () => $request->session()->get('error'),
                 'info'    => fn () => $request->session()->get('info'),
             ],
-            'python_setup' => fn () => [
-                'status'     => AppSetting::get('python_setup_status', 'not_started'),
-                'error'      => self::sanitizeUtf8(AppSetting::get('python_setup_error')),
-                'onboarding_complete' => (bool) AppSetting::get('onboarding_complete', false),
-            ],
+            'python_setup' => function () {
+                try {
+                    return app(PythonSetupService::class)->sharedPayload();
+                } catch (\Throwable $e) {
+                    return [
+                        'status'              => 'failed',
+                        'error'               => self::sanitizeUtf8($e->getMessage()),
+                        'log'                 => '',
+                        'started_at'          => null,
+                        'onboarding_complete' => false,
+                    ];
+                }
+            },
         ];
     }
 

@@ -5,6 +5,7 @@ import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
 import { HpBar } from '@/Components/HpBar'
 import { Campaign, Character } from '@/types'
+import { formatSigned, primaryAdjustment } from '@/lib/adnd2e'
 
 interface Props {
   campaign: Campaign | null
@@ -78,10 +79,8 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
     ? `/characters/${character.id}`
     : `/campaigns/${campaign!.id}/characters/${character.id}`
 
-  const mod = (score: number) => {
-    const m = Math.floor((score - 10) / 2)
-    return m >= 0 ? `+${m}` : `${m}`
-  }
+  const mod = (ability: string, score: number) =>
+    formatSigned(primaryAdjustment(ability, score, character.exceptional_strength, character.class))
 
   return (
     <Link href={href} className="block group">
@@ -119,7 +118,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
             {character.subclass ? ` — ${character.subclass}` : ''}
             {character.player_name ? ` · ${character.player_name}` : ''}
           </p>
-          <HpBar current={character.current_hp} max={character.max_hp} temp={character.temp_hp} className="mt-2 max-w-[180px]" />
+          <HpBar current={character.current_hp} max={character.max_hp} className="mt-2 max-w-[180px]" />
         </div>
 
         {/* Ability score mods */}
@@ -127,7 +126,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
           {(['strength','dexterity','constitution','intelligence','wisdom','charisma'] as const).map(ab => (
             <div key={ab} className="text-center">
               <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">{ab.slice(0,3)}</div>
-              <div className="text-sm font-mono text-[var(--color-rune-bright)]">{mod(character[ab])}</div>
+              <div className="text-sm font-mono text-[var(--color-rune-bright)]">{mod(ab, character[ab])}</div>
             </div>
           ))}
         </div>
@@ -136,13 +135,9 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
         <div className="flex items-center gap-4 shrink-0">
           <Stat
             label="AC"
-            value={
-              character.inventory_items?.some(i => i.category === 'Shield' && i.equipped)
-                ? `${character.armor_class}+2`
-                : character.armor_class
-            }
+            value={character.armor_class}
           />
-          <Stat label="Speed" value={`${character.speed}ft`} />
+          <Stat label="THAC0" value={character.thac0} />
         </div>
 
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"

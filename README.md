@@ -1,15 +1,12 @@
-# Lorefire
+# Lorefire 2E
 
 <p align="center">
   <img width="128" height="128" alt="Lorefire" src="lorefire-desktop/public/logo.png" />
 </p>
 
-[![Release](https://github.com/JustinWoodring/lorefire/actions/workflows/release.yml/badge.svg)](https://github.com/JustinWoodring/lorefire/actions/workflows/release.yml)
+> A local-first chronicle for **Advanced Dungeons & Dragons 2nd Edition** campaigns. Record sessions, auto-transcribe with AI, generate bardic summaries, track characters, and build your campaign archive — all on your machine, no cloud required.
 
-<img width="1056" height="800" alt="Screenshot 2026-03-06 at 8 20 58 AM" src="https://github.com/user-attachments/assets/d86597f8-4304-40c7-b542-4c48a4c74f49" />
-
-
-> A local-first chronicle for 5e campaigns. Record sessions, auto-transcribe with AI, generate bardic summaries, track characters, and build your campaign archive — all on your machine, no cloud required.
+This repository is a **separate AD&D 2E edition** of [Lorefire](https://github.com/JustinWoodring/lorefire) by Justin Woodring. It is not a 5e app with a rules toggle.
 
 Built with [NativePHP](https://nativephp.com), [Laravel 12](https://laravel.com), [React](https://react.dev), and [Inertia.js](https://inertiajs.com).
 
@@ -22,22 +19,21 @@ Built with [NativePHP](https://nativephp.com), [Laravel 12](https://laravel.com)
 | | Feature | Description |
 |---|---|---|
 | 📚 | **Campaigns** | Manage multiple campaigns with party portraits and full session history |
-| 🧙 | **Characters** | Full 5e character sheets — HP, spell slots, inventory, conditions, short/long rests |
-| 📥 | **Beyond Import** | Import characters directly from D&D Beyond |
+| 🧙 | **Characters** | AD&D 2E sheets — THAC0, descending AC, 2E saves, weapon/non-weapon proficiencies, Vancian memorization |
 | 🎙️ | **Session Recording** | Record audio at the table and transcribe locally with WhisperX |
 | 📖 | **Bardic Summaries** | AI-generated epic prose recaps of your sessions |
-| ⚔️ | **Encounter Tracker** | Auto-detect encounters from transcripts with round-by-round breakdowns |
+| ⚔️ | **Encounter Tracker** | Auto-detect encounters; resolve attacks with THAC0 vs descending AC and d10 initiative |
 | 🧝 | **NPC Roster** | Track campaign NPCs with attitudes, locations, and AI-generated portraits |
-| 🔮 | **Oracle** | AI chat assistant with full access to your campaign and character data |
+| 🔮 | **Oracle** | AI chat assistant that answers in 2E terms, with full access to your campaign data |
 | 🎨 | **Art Generation** | Generate character portraits and scene art via ComfyUI, z.ai, or DALL-E |
 | 📄 | **PDF Export** | Export campaign or session data to PDF |
-| 🔍 | **Detail Extraction** | LLM-powered extraction of stat changes and NPC appearances from transcripts |
+| 🔍 | **Detail Extraction** | LLM-powered extraction of HP, gold, XP, and NPC appearances from transcripts |
 
 ---
 
 ## 📦 Installation (Release Build)
 
-1. Download the latest `.dmg` from the [Releases](https://github.com/JustinWoodring/lorefire/releases) page
+1. Download the latest `.dmg` from the [Releases](https://github.com/amescarra/lorefire/releases) page
 2. Open the DMG and drag **Lorefire.app** to `/Applications`
 3. Because the app is not notarized, macOS Gatekeeper will block it on first launch. Remove the quarantine flag:
 
@@ -58,11 +54,13 @@ xattr -rd com.apple.quarantine /Applications/Lorefire.app
 - [PHP](https://php.net) 8.2+
 - [Composer](https://getcomposer.org)
 
+**Windows on ARM:** keep ARM64 Node (do not install x64 Node). `native:serve` uses your system ARM64 PHP (`winget install PHP.PHP.8.4`). NativePHP php-bin has no `win/arm64` zip — see [lorefire-desktop/WINDOWS-ARM.md](lorefire-desktop/WINDOWS-ARM.md). Packaged ARM installers are still blocked upstream.
+
 ### Setup
 
 ```bash
 # Clone the repo
-git clone https://github.com/justinwoodring/lorefire.git
+git clone https://github.com/amescarra/lorefire.git
 cd lorefire/lorefire-desktop
 
 # Install PHP dependencies
@@ -76,7 +74,11 @@ cp .env.example .env
 php artisan key:generate
 
 # Run database migrations
-DB_DATABASE=$(pwd)/database/nativephp.sqlite php artisan migrate
+# NativePHP opens database/nativephp.sqlite. `php artisan migrate` uses
+# database/database.sqlite unless DB_DATABASE is set, so also run:
+php artisan native:migrate --force
+# After this change, `php artisan migrate` (non-testing) also migrates
+# nativephp.sqlite when that file already exists.
 
 # Build frontend assets
 npm run build
@@ -84,6 +86,8 @@ npm run build
 # Start the app
 php artisan native:serve
 ```
+
+On Windows ARM64, run that same command with ARM Node + ARM PHP on PATH. Optional check wrapper: `powershell -File scripts/native-serve.ps1`.
 
 > **Note:** Make sure no other Vite process is already running on port 5173 before starting `native:serve`. You can check with `lsof -i :5173`.
 
@@ -95,14 +99,14 @@ All settings are configured inside the app via **Settings** (after onboarding). 
 
 ### 🎙️ Transcription (WhisperX)
 
-Lorefire bundles [WhisperX](https://github.com/m-bain/whisperX) in a local Python virtual environment. Audio is **never sent off your device**.
+Lorefire 2E bundles [WhisperX](https://github.com/m-bain/whisperX) in a local Python virtual environment. Audio is **never sent off your device**.
 
 On first launch, the app automatically installs the Python venv in the background. You can monitor progress in the onboarding wizard or in Settings.
 
 | Setting | Description |
 |---|---|
-| **Model size** | `tiny` → `large-v3`. `base` is recommended for most Macs. Larger = more accurate but slower. |
-| **Language** | Default `English`. Auto-detect and 9 other languages supported. |
+| **Model size** | `tiny` → `large-v3` (multilingual). `base` is recommended. English-only `*.en` names are coerced to the multilingual twin. |
+| **Languages** | Allowlist default **English + Spanish**. Detection is per spoken stretch and clamped to that list — mixed sessions keep both; a false French detect does not stay French. |
 | **HuggingFace Token** | Required for **speaker diarization** (identifying who said what). Free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). You must also accept **both** pyannote model licenses while logged into the same account: [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0). |
 
 > **Large-v3 note:** Needs 8 GB+ RAM and will be noticeably slow on CPU. On Apple Silicon with enough unified memory it works well.
@@ -226,6 +230,7 @@ Lorefire submits generation jobs via the ComfyUI API. The active checkpoint in C
 - **No account required.** Nothing is synced to a server. Your campaigns stay on your machine.
 - **Other hardware:** Tested on Apple Silicon. It may work on Intel Macs, Windows, or Linux, but this is untested. WhisperX in particular will be significantly slower without a dedicated neural engine or GPU.
 - **Transcription is CPU/ANE-bound.** On Apple Silicon, WhisperX uses the `mps` backend. Large audio files may take a few minutes even on `base` model.
+- **Rules text.** This project implements original UI wording and mechanical tables only. It does not include TSR/WotC copyrighted rulebook prose.
 
 ---
 
@@ -233,4 +238,4 @@ Lorefire submits generation jobs via the ComfyUI API. The active checkpoint in C
 
 MIT — see [LICENSE](./LICENSE)
 
-&copy; 2026 Justin Woodring
+Original Lorefire © 2026 Justin Woodring. This 2E fork retains that copyright and the MIT license.

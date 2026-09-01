@@ -10,7 +10,6 @@ class CharacterCondition extends Model
     protected $fillable = [
         'character_id',
         'condition',
-        'exhaustion_level',
         'notes',
     ];
 

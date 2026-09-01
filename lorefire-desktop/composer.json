@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "cweagans/composer-patches": "^1.7",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
@@ -80,6 +81,11 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "patches": {
+            "nativephp/electron": {
+                "Windows ARM64 native:serve uses system ARM PHP": "patches/nativephp-electron-windows-arm64-system-php.patch"
+            }
         }
     },
     "config": {
@@ -87,6 +93,7 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
+            "cweagans/composer-patches": true,
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }

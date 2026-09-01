@@ -28,11 +28,19 @@ class GameSession extends Model
         'duration_seconds',
         'art_prompts_status',
         'extraction_status',
+        'sheet_update_cursor',
+        'sheet_update_hashes',
+        'live_chunk_index',
+        'live_audio_seconds',
     ];
 
     protected $casts = [
         'played_at'                 => 'date',
         'participant_character_ids' => 'array',
+        'sheet_update_hashes'       => 'array',
+        'sheet_update_cursor'       => 'integer',
+        'live_chunk_index'          => 'integer',
+        'live_audio_seconds'        => 'float',
     ];
 
     public function campaign(): BelongsTo

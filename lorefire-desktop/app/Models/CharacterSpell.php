@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Adnd2e;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,17 +17,41 @@ class CharacterSpell extends Model
         'range',
         'components',
         'duration',
-        'concentration',
-        'ritual',
         'description',
         'is_prepared',
+        'is_cast',
+        'times_memorized',
+        'times_cast',
     ];
 
     protected $casts = [
-        'concentration' => 'boolean',
-        'ritual' => 'boolean',
         'is_prepared' => 'boolean',
+        'is_cast' => 'boolean',
+        'times_memorized' => 'integer',
+        'times_cast' => 'integer',
     ];
+
+    protected $appends = [
+        'remaining_memorized',
+    ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $spell) {
+            $flags = Adnd2e::spellVancianFlags(
+                (int) $spell->times_memorized,
+                (int) $spell->times_cast,
+            );
+            foreach ($flags as $key => $value) {
+                $spell->{$key} = $value;
+            }
+        });
+    }
+
+    public function getRemainingMemorizedAttribute(): int
+    {
+        return Adnd2e::remainingMemorized((int) $this->times_memorized, (int) $this->times_cast);
+    }
 
     public function character(): BelongsTo
     {

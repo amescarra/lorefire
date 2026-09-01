@@ -5,9 +5,11 @@ import AppLayout from '@/Layouts/AppLayout'
 import { Card, CardHeader } from '@/Components/Card'
 import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
+import { ConditionManager } from '@/Components/ConditionManager'
 import { HpBar } from '@/Components/HpBar'
 import { useRecording } from '@/Contexts/RecordingContext'
 import { Campaign, GameSession, Character, InventoryItem, CharacterSpell } from '@/types'
+import { formatSigned, primaryAdjustment, remainingMemorizedOf, timesMemorizedOf, vitalityState } from '@/lib/adnd2e'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,9 +29,8 @@ function csrf(): string {
   return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
 }
 
-function mod(score: number): string {
-  const m = Math.floor((score - 10) / 2)
-  return m >= 0 ? `+${m}` : `${m}`
+function mod(score: number, ability = 'dexterity', characterClass = 'Fighter'): string {
+  return formatSigned(primaryAdjustment(ability, score, null, characterClass))
 }
 
 function fmtTime(s: number): string {
@@ -40,7 +41,12 @@ function fmtTime(s: number): string {
 
 interface OracleMessage { role: 'user' | 'assistant'; content: string }
 
-function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; hasLlm: boolean }) {
+function OraclePanel({ campaignContext, hasLlm, sessionId, onSheetUpdated }: {
+  campaignContext: Campaign
+  hasLlm: boolean
+  sessionId: number
+  onSheetUpdated: () => void
+}) {
   const [messages, setMessages] = useState<OracleMessage[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -73,9 +79,14 @@ function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; h
       const res = await fetch('/oracle/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-        body: JSON.stringify({ messages: next, context: { campaigns: [campaignContext] } }),
+        body: JSON.stringify({
+          messages: next,
+          context: { campaigns: [campaignContext] },
+          session_id: sessionId,
+        }),
       })
       const data = await res.json().catch(() => ({}))
+      if (data.sheet_updated) onSheetUpdated()
       if (!res.ok || data.error) { setError(data.error ?? 'Failed to reach the Oracle.'); setLoading(false); return }
       const replyId = data.reply_id as number
       pollRef.current = setInterval(async () => {
@@ -118,10 +129,11 @@ function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; h
               Ask the Oracle
             </p>
             {[
-              'What are the rules for grappling?',
+              'How does THAC0 vs descending AC work?',
               'Summarize the current session.',
-              'How does concentration work?',
-              'What happens when a character drops to 0 HP?',
+              'How does spell memorization work?',
+              'Mark Fireball as cast',
+              'What happens when a character drops below 0 HP?',
             ].map(p => (
               <button
                 key={p}
@@ -190,9 +202,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
   const baseUrl    = standalone
     ? `/characters/${character.id}`
     : `/campaigns/${campaignId}/characters/${character.id}`
-  const spellSlotsUrl = standalone
-    ? `/characters/${character.id}/spell-slots`
-    : `/campaigns/${campaignId}/characters/${character.id}/spell-slots`
+  const memorizationUrl = standalone
+    ? `/characters/${character.id}/memorization`
+    : `/campaigns/${campaignId}/characters/${character.id}/memorization`
   const restUrl = standalone
     ? `/characters/${character.id}/rest`
     : `/campaigns/${campaignId}/characters/${character.id}/rest`
@@ -201,24 +213,29 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     : `/campaigns/${campaignId}/characters/${character.id}/class-features`
 
   const [tab, setTab]               = useState<'combat' | 'spells' | 'inventory'>('combat')
-  const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null)
+  const [restConfirm, setRestConfirm] = useState(false)
   const [hpInput, setHpInput]       = useState('')
   const [hpMode, setHpMode]         = useState<'damage' | 'heal' | null>(null)
 
   // Local mirror of character HP so we can update without full reload
   const [currentHp, setCurrentHp]   = useState(character.current_hp)
-  const [tempHp, setTempHp]         = useState(character.temp_hp)
 
-  // Local mirror of spell slots used
-  const [slotsUsed, setSlotsUsed]   = useState<Record<string, number>>(character.spell_slots_used ?? {})
+  // Local mirror of memorization capacity used
+  const [slotsUsed, setSlotsUsed]   = useState<Record<string, number>>(character.memorization_used ?? {})
 
   // Local mirror of class features (for lay on hands etc.)
   const [classFeatures, setClassFeatures] = useState<Record<string, unknown>>(character.class_features ?? {})
 
-  const hasSpellSlots = !!(character.spell_slots && Object.keys(character.spell_slots).length > 0)
+  useEffect(() => {
+    setCurrentHp(character.current_hp)
+    setSlotsUsed(character.memorization_used ?? {})
+    setClassFeatures(character.class_features ?? {})
+  }, [character.current_hp, character.memorization_used, character.class_features, character.spells])
+
+  const hasSpellSlots = !!(character.memorization && Object.keys(character.memorization).length > 0)
 
   // Lay on Hands — fall back to level*5 for Paladins who haven't saved keys yet
-  const defaultLayMax = character.class === 'Paladin' ? character.level * 5 : null
+  const defaultLayMax = character.class === 'Paladin' ? character.level * 2 : null
   const layMax     = typeof classFeatures.lay_on_hands_max === 'number'
     ? classFeatures.lay_on_hands_max
     : defaultLayMax
@@ -254,13 +271,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     let next = currentHp
 
     if (mode === 'damage') {
-      let remaining = amount
-      if (tempHp > 0) {
-        const absorbed = Math.min(tempHp, remaining)
-        setTempHp(t => t - absorbed)
-        remaining -= absorbed
-      }
-      next = Math.max(0, next - remaining)
+      next = Math.max(-10, next - amount)
     } else {
       next = Math.min(max, next + amount)
     }
@@ -269,32 +280,35 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     setHpInput('')
     setHpMode(null)
 
-    // Persist via PATCH
     await fetch(`/characters/${character.id}/hp`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-      body: JSON.stringify({ current_hp: next, temp_hp: tempHp }),
+      body: JSON.stringify({ current_hp: next }),
     })
   }
 
-  const doRest = (type: 'short' | 'long') => {
-    router.post(`${restUrl}/${type}`, {}, {
+  const doRest = () => {
+    router.post(`${restUrl}/overnight`, {}, {
       preserveScroll: true,
-      onSuccess: () => setRestConfirm(null),
+      onSuccess: () => setRestConfirm(false),
     })
   }
 
   const toggleSlot = async (level: number, action: 'use' | 'recover') => {
     const key   = String(level)
     const used  = slotsUsed[key] ?? 0
-    const max   = (character.spell_slots?.[key] ?? 0) as number
+    const max   = (character.memorization?.[key] ?? 0) as number
     const next  = action === 'use' ? Math.min(max, used + 1) : Math.max(0, used - 1)
     setSlotsUsed(prev => ({ ...prev, [key]: next }))
-    await fetch(spellSlotsUrl, {
+    await fetch(memorizationUrl, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
       body: JSON.stringify({ level, action }),
     })
+  }
+
+  const burnSpell = (spell: CharacterSpell, action: 'use' | 'recover') => {
+    router.patch(`/characters/${character.id}/spells/${spell.id}/cast`, { action }, { preserveScroll: true })
   }
 
   // ── HP pct colour ─────────────────────────────────────────────────────────
@@ -336,7 +350,12 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
           <div className="flex items-baseline gap-1">
             <span className="text-xl font-heading font-bold" style={{ color: hpColor }}>{currentHp}</span>
             <span className="text-xs" style={{ color: 'var(--color-text-dim)' }}>/ {character.max_hp}</span>
-            {tempHp > 0 && <span className="text-xs" style={{ color: 'var(--color-arcane)' }}>+{tempHp} tmp</span>}
+            {vitalityState(currentHp) !== 'ok' && (
+              <span className="text-[10px] uppercase" style={{ color: 'var(--color-danger)' }}>{vitalityState(currentHp)}</span>
+            )}
+            <span className="text-[10px] font-mono ml-2" style={{ color: 'var(--color-text-dim)' }}>
+              {character.gold ?? 0} gp
+            </span>
           </div>
           <div className="flex gap-1">
             <button
@@ -392,9 +411,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
       {/* ── Quick stats ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 divide-x text-center" style={{ borderBottom: '1px solid var(--color-border)', divideBorderColor: 'var(--color-border)' }}>
         {[
-          { label: 'AC',   value: character.armor_class },
-          { label: 'Init', value: mod(character.dexterity) },
-          { label: 'Spd',  value: `${character.speed}ft` },
+          { label: 'AC',    value: character.armor_class },
+          { label: 'THAC0', value: character.thac0 },
+          { label: 'MV',    value: character.speed },
         ].map(({ label, value }) => (
           <div key={label} className="py-2 flex flex-col items-center gap-0.5" style={{ borderColor: 'var(--color-border)' }}>
             <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>{label}</span>
@@ -427,17 +446,16 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             {restConfirm ? (
               <div className="flex flex-col gap-2 p-2 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
                 <p className="text-xs text-center" style={{ color: 'var(--color-text-dim)' }}>
-                  {restConfirm === 'short' ? 'Short rest?' : 'Long rest? (restores HP, slots, abilities)'}
+                  Overnight rest? Recovers 1 HP and rememorizes spells.
                 </p>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => setRestConfirm(null)} className="flex-1">Cancel</Button>
-                  <Button size="sm" variant="rune" onClick={() => doRest(restConfirm)} className="flex-1">Confirm</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRestConfirm(false)} className="flex-1">Cancel</Button>
+                  <Button size="sm" variant="rune" onClick={doRest} className="flex-1">Confirm</Button>
                 </div>
               </div>
             ) : (
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setRestConfirm('short')} className="flex-1">Short Rest</Button>
-                <Button size="sm" variant="ghost" onClick={() => setRestConfirm('long')} className="flex-1">Long Rest</Button>
+                <Button size="sm" variant="ghost" onClick={() => setRestConfirm(true)} className="flex-1">Overnight Rest</Button>
               </div>
             )}
 
@@ -454,7 +472,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                 <div key={label} className="flex flex-col items-center py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
                   <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>{label}</span>
                   <span className="text-sm font-bold font-heading" style={{ color: 'var(--color-text-bright)' }}>{character[key]}</span>
-                  <span className="text-[9px] font-mono" style={{ color: 'var(--color-rune)' }}>{mod(character[key] as number)}</span>
+                  <span className="text-[9px] font-mono" style={{ color: 'var(--color-rune)' }}>{mod(character[key] as number, key, character.class)}</span>
                 </div>
               ))}
             </div>
@@ -493,25 +511,19 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             )}
 
             {/* Conditions */}
-            {character.conditions && character.conditions.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {character.conditions.map(c => (
-                  <Badge key={c.id} variant="danger">{c.name}</Badge>
-                ))}
-              </div>
-            )}
+            <ConditionManager characterId={character.id} conditions={character.conditions ?? []} compact />
           </div>
         )}
 
         {/* Spells tab */}
         {tab === 'spells' && (
           <div className="flex flex-col gap-3">
-            {hasSpellSlots && character.spell_slots && (
+            {hasSpellSlots && character.memorization && (
               <div className="flex flex-col gap-2">
                 <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>
-                  Spell Slots · click to use · right-click to recover
+                  Memorized · click to cast · right-click to restore
                 </p>
-                {Object.entries(character.spell_slots)
+                {Object.entries(character.memorization)
                   .filter(([, max]) => (max as number) > 0)
                   .sort(([a], [b]) => Number(a) - Number(b))
                   .map(([level, maxRaw]) => {
@@ -521,7 +533,7 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                     return (
                       <div key={level} className="flex items-center gap-2">
                         <span className="text-[9px] uppercase tracking-widest shrink-0 w-12" style={{ color: 'var(--color-text-dim)' }}>
-                          {level === '0' ? 'Cantrip' : `Lv ${level}`}
+                          {`Lv ${level}`}
                         </span>
                         <div className="flex gap-1 flex-wrap flex-1">
                           {Array.from({ length: max }).map((_, i) => {
@@ -543,23 +555,36 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
               </div>
             )}
 
-            {/* Prepared spells list */}
             {character.spells && character.spells.length > 0 && (
               <div className="flex flex-col gap-1">
-                <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-dim)' }}>Known / Prepared</p>
+                <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-dim)' }}>Memorized</p>
                 {character.spells
-                  .filter(s => s.is_prepared || s.level === 0)
+                  .filter(s => timesMemorizedOf(s) > 0)
                   .sort((a, b) => a.level - b.level)
-                  .map(spell => (
-                    <div key={spell.id} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
-                      <span className="text-[9px] font-mono shrink-0" style={{ color: 'var(--color-rune-dim)' }}>
-                        {spell.level === 0 ? 'C' : spell.level}
-                      </span>
-                      <span className="text-xs flex-1 truncate" style={{ color: 'var(--color-text-bright)' }}>{spell.name}</span>
-                      {spell.concentration && <span className="text-[8px]" style={{ color: 'var(--color-arcane)' }}>C</span>}
-                      {spell.ritual      && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>R</span>}
-                    </div>
-                  ))}
+                  .map(spell => {
+                    const remaining = remainingMemorizedOf(spell)
+                    const copies = timesMemorizedOf(spell)
+                    return (
+                      <button
+                        key={spell.id}
+                        type="button"
+                        title={remaining > 0 ? 'Click to cast one copy · right-click to restore' : 'Right-click to restore one copy'}
+                        onClick={() => remaining > 0 && burnSpell(spell, 'use')}
+                        onContextMenu={e => { e.preventDefault(); remaining < copies && burnSpell(spell, 'recover') }}
+                        className="flex items-center gap-2 px-2 py-1 rounded text-left"
+                        style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)', opacity: remaining > 0 ? 1 : 0.5 }}
+                      >
+                        <span className="text-[9px] font-mono shrink-0" style={{ color: 'var(--color-rune-dim)' }}>
+                          {spell.level}
+                        </span>
+                        <span className="text-xs flex-1 truncate" style={{ color: 'var(--color-text-bright)' }}>{spell.name}</span>
+                        <span className="text-[8px] font-mono shrink-0" style={{ color: 'var(--color-text-dim)' }}>
+                          {remaining}/{copies}
+                        </span>
+                        {remaining === 0 && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>cast</span>}
+                      </button>
+                    )
+                  })}
               </div>
             )}
 
@@ -582,7 +607,6 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
                   </span>
                   {item.quantity > 1 && <span className="text-[10px] font-mono shrink-0" style={{ color: 'var(--color-text-dim)' }}>×{item.quantity}</span>}
                   {item.equipped && <span className="text-[8px] uppercase tracking-widest shrink-0" style={{ color: 'var(--color-rune)' }}>Eq</span>}
-                  {item.attuned && <span className="text-[8px] uppercase tracking-widest shrink-0" style={{ color: 'var(--color-arcane)' }}>At</span>}
                 </div>
               ))
             )}
@@ -684,8 +708,29 @@ function SessionPanel({ campaign, session }: { campaign: Campaign; session: Game
 
 export default function Live({ campaign, session, characters, hasLlm, campaignContext }: Props) {
   const [tab, setTab] = useState<LiveTab>('characters')
+  const [liveCharacters, setLiveCharacters] = useState(characters)
   const { isRecording, activeSessionId } = useRecording()
   const isThisSession = activeSessionId === session.id
+
+  useEffect(() => {
+    setLiveCharacters(characters)
+  }, [characters])
+
+  const refreshCharacters = () => {
+    fetch(`/campaigns/${campaign.id}/sessions/${session.id}/live-state`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.characters)) setLiveCharacters(data.characters)
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!isThisSession || !isRecording) return
+    refreshCharacters()
+    const id = setInterval(refreshCharacters, 2500)
+    return () => clearInterval(id)
+  }, [isThisSession, isRecording, campaign.id, session.id])
 
   return (
     <AppLayout breadcrumbs={[
@@ -712,7 +757,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
           {/* Tab switcher */}
           <div className="flex gap-1 ml-auto">
             {([
-              { key: 'characters', label: `Characters (${characters.length})` },
+              { key: 'characters', label: `Characters (${liveCharacters.length})` },
               { key: 'oracle',     label: 'Oracle' },
               { key: 'session',    label: 'Session' },
             ] as const).map(({ key, label }) => (
@@ -733,7 +778,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
 
         {/* ── Characters grid ───────────────────────────────────────────── */}
         {tab === 'characters' && (
-          characters.length === 0 ? (
+          liveCharacters.length === 0 ? (
             <div className="flex items-center justify-center flex-1">
               <p className="text-sm" style={{ color: 'var(--color-text-dim)' }}>
                 No characters assigned to this session.{' '}
@@ -751,7 +796,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
                 alignItems: 'start',
               }}
             >
-              {characters.map(char => (
+              {liveCharacters.map(char => (
                 <CharacterCard key={char.id} character={char} campaignId={campaign.id} />
               ))}
             </div>
@@ -761,7 +806,12 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
         {/* ── Oracle ────────────────────────────────────────────────────── */}
         {tab === 'oracle' && (
           <div className="runic-card flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 12rem)' }}>
-            <OraclePanel campaignContext={campaignContext} hasLlm={hasLlm} />
+            <OraclePanel
+              campaignContext={campaignContext}
+              hasLlm={hasLlm}
+              sessionId={session.id}
+              onSheetUpdated={refreshCharacters}
+            />
           </div>
         )}
 

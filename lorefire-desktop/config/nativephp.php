@@ -39,7 +39,7 @@ return [
     /**
      * The description of your application.
      */
-    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'A local-first chronicle for 5e tabletop campaigns'),
+    'description' => env('NATIVEPHP_APP_DESCRIPTION', 'A local-first chronicle for AD&D 2nd Edition campaigns'),
 
     /**
      * The Website of your application.
@@ -167,7 +167,9 @@ return [
     ],
 
     /**
-     * Custom PHP binary path.
+     * Custom PHP binary path (php-bin package directory, not php.exe).
+     * Unused on Windows ARM64 serve — php-bin has no win/arm64 zip.
+     * native:serve passes NATIVEPHP_PHP_EXECUTABLE (system ARM php.exe) instead.
      */
     'binary_path' => env('NATIVEPHP_PHP_BINARY_PATH', null),
 ];

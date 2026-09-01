@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Head, Link, router, useForm } from '@inertiajs/react'
+import { Head, Link, router } from '@inertiajs/react'
 import AppLayout from '@/Layouts/AppLayout'
 import { Card, CardHeader, StatBlock } from '@/Components/Card'
 import { Badge } from '@/Components/Badge'
@@ -8,6 +8,11 @@ import { HpBar } from '@/Components/HpBar'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Input } from '@/Components/Input'
 import { Campaign, Character, InventoryItem, InventorySnapshot } from '@/types'
+import { ConditionManager } from '@/Components/ConditionManager'
+import { SpellsTab } from '@/Components/SpellsTab'
+import {
+  SAVE_CATEGORIES, anyCaster, formatSigned, hasPsionicist, normalizeClassLevels, primaryAdjustment, vitalityState,
+} from '@/lib/adnd2e'
 
 interface Props {
   campaign: Campaign | null
@@ -17,35 +22,10 @@ interface Props {
 
 type Tab = 'stats' | 'spells' | 'inventory' | 'features' | 'notes'
 
-const SKILLS: Array<{ name: string; ability: keyof Character }> = [
-  { name: 'Acrobatics', ability: 'dexterity' },
-  { name: 'Animal Handling', ability: 'wisdom' },
-  { name: 'Arcana', ability: 'intelligence' },
-  { name: 'Athletics', ability: 'strength' },
-  { name: 'Deception', ability: 'charisma' },
-  { name: 'History', ability: 'intelligence' },
-  { name: 'Insight', ability: 'wisdom' },
-  { name: 'Intimidation', ability: 'charisma' },
-  { name: 'Investigation', ability: 'intelligence' },
-  { name: 'Medicine', ability: 'wisdom' },
-  { name: 'Nature', ability: 'intelligence' },
-  { name: 'Perception', ability: 'wisdom' },
-  { name: 'Performance', ability: 'charisma' },
-  { name: 'Persuasion', ability: 'charisma' },
-  { name: 'Religion', ability: 'intelligence' },
-  { name: 'Sleight of Hand', ability: 'dexterity' },
-  { name: 'Stealth', ability: 'dexterity' },
-  { name: 'Survival', ability: 'wisdom' },
-]
-
-// D&D 5e spell slots by class+level
-const SPELL_SLOT_CLASSES = ['Bard','Cleric','Druid','Paladin','Ranger','Sorcerer','Warlock','Wizard','Artificer','Eldritch Knight','Arcane Trickster']
-
 export default function Show({ campaign, character, imageGenProvider }: Props) {
   const standalone = campaign === null
   const [tab, setTab] = useState<Tab>('stats')
-  const [showImport, setShowImport] = useState(false)
-  const [restConfirm, setRestConfirm] = useState<'short' | 'long' | null>(null)
+  const [restConfirm, setRestConfirm] = useState(false)
 
   // Portrait generation polling
   const [livePortraitPath, setLivePortraitPath] = useState<string | null>(
@@ -79,12 +59,6 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     if (genPollRef.current) clearInterval(genPollRef.current)
   }
 
-  const importForm = useForm({ dnd_beyond_url: character.dnd_beyond_url ?? '' })
-
-  const importUrl = standalone
-    ? `/characters/${character.id}/import-dnd-beyond`
-    : `/campaigns/${campaign!.id}/characters/${character.id}/import-dnd-beyond`
-
   const deleteHref = standalone
     ? `/characters/${character.id}`
     : `/campaigns/${campaign!.id}/characters/${character.id}`
@@ -97,47 +71,25 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     ? `/characters/${character.id}/rest`
     : `/campaigns/${campaign!.id}/characters/${character.id}/rest`
 
-  const spellSlotsUrl = standalone
-    ? `/characters/${character.id}/spell-slots`
-    : `/campaigns/${campaign!.id}/characters/${character.id}/spell-slots`
+  const memorizationUrl = standalone
+    ? `/characters/${character.id}/memorization`
+    : `/campaigns/${campaign!.id}/characters/${character.id}/memorization`
 
   const classFeaturesUrl = `/characters/${character.id}/class-features`
 
-  const submitImport = (e: React.FormEvent) => {
-    e.preventDefault()
-    importForm.post(importUrl, {
-      onSuccess: () => setShowImport(false),
-    })
-  }
-
-  const doRest = (type: 'short' | 'long') => {
-    router.post(`${restBaseUrl}/${type}`, {}, { preserveScroll: true })
-    setRestConfirm(null)
+  const doRest = () => {
+    router.post(`${restBaseUrl}/overnight`, {}, { preserveScroll: true })
+    setRestConfirm(false)
   }
 
   const toggleSlot = (level: number, action: 'use' | 'recover') => {
-    router.patch(spellSlotsUrl, { level, action }, { preserveScroll: true })
+    router.patch(memorizationUrl, { level, action }, { preserveScroll: true })
   }
 
-  const mod = (score: number) => {
-    const m = Math.floor((score - 10) / 2)
-    return m >= 0 ? `+${m}` : `${m}`
-  }
+  const adj = (ability: string, score: number) =>
+    formatSigned(primaryAdjustment(ability, score, character.exceptional_strength, character.class))
 
-  const skillMod = (skill: (typeof SKILLS)[0]) => {
-    const abilityScore = character[skill.ability] as number
-    const base = Math.floor((abilityScore - 10) / 2)
-    const key = skill.name.toLowerCase().replace(/ /g, '_')
-    const hasProficiency = character.skill_proficiencies?.some(s => s.toLowerCase() === key)
-    const hasExpertise = character.skill_expertises?.some(s => s.toLowerCase() === key)
-    const bonus = hasExpertise
-      ? character.proficiency_bonus * 2
-      : hasProficiency
-        ? character.proficiency_bonus
-        : 0
-    const total = base + bonus
-    return { value: total >= 0 ? `+${total}` : `${total}`, proficient: hasProficiency || hasExpertise, expert: hasExpertise }
-  }
+  const vitality = vitalityState(character.current_hp)
 
   const abilities = [
     { label: 'STR', key: 'strength' as const },
@@ -148,8 +100,9 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     { label: 'CHA', key: 'charisma' as const },
   ]
 
-  const hasSpellSlots = SPELL_SLOT_CLASSES.some(c => character.class?.includes(c))
-    || (character.spell_slots && Object.keys(character.spell_slots).length > 0)
+  const classEntries = normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single')
+  const hasMemorization = anyCaster(classEntries)
+    || (character.memorization && Object.keys(character.memorization).length > 0)
 
   return (
     <AppLayout breadcrumbs={
@@ -206,19 +159,27 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-heading text-2xl text-[var(--color-text-white)] tracking-widest uppercase">{character.name}</h1>
               <Badge variant="rune">Level {character.level}</Badge>
-              {character.conditions && character.conditions.length > 0 && (
-                <Badge variant="warning">Conditions</Badge>
+              {character.class_path && character.class_path !== 'single' && (
+                <Badge variant="muted">{character.class_path === 'dual' ? 'Dual-class' : 'Multi-class'}</Badge>
               )}
             </div>
             <p className="text-sm text-[var(--color-text-dim)] mt-0.5">
               {character.race}{character.subrace ? ` (${character.subrace})` : ''} · {character.class}{character.subclass ? ` — ${character.subclass}` : ''}
               {character.background ? ` · ${character.background}` : ''}
             </p>
+            <div className="mt-2">
+              <ConditionManager characterId={character.id} conditions={character.conditions ?? []} />
+            </div>
             {character.player_name && (
               <p className="text-xs text-[var(--color-text-dim)] mt-0.5 opacity-60">Played by {character.player_name}</p>
             )}
 
-            <HpBar current={character.current_hp} max={character.max_hp} temp={character.temp_hp} className="mt-3 max-w-xs" />
+            <HpBar current={character.current_hp} max={character.max_hp} className="mt-3 max-w-xs" />
+            {vitality !== 'ok' && (
+              <p className="text-xs uppercase tracking-widest mt-1 text-[var(--color-danger)]">
+                {vitality === 'dead' ? 'Dead (−10)' : vitality === 'dying' ? 'Dying' : 'Unconscious'}
+              </p>
+            )}
           </div>
 
           {/* Combat stats */}
@@ -228,18 +189,21 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
                 i => i.category === 'Shield' && i.equipped
               )
               return shieldEquipped
-                ? <StatBlock label="AC" value={`${character.armor_class}+2`} sub="Sh" />
+                ? <StatBlock label="AC" value={character.armor_class} sub="shield" />
                 : <StatBlock label="AC" value={character.armor_class} />
             })()}
-            <StatBlock label="Init" value={mod(character.dexterity)} />
-            <StatBlock label="Speed" value={`${character.speed}ft`} />
-            <StatBlock label="Prof" value={`+${character.proficiency_bonus}`} highlight />
+            <StatBlock label="THAC0" value={character.thac0} highlight />
+            <StatBlock label="MV" value={character.speed} />
+            <StatBlock label="HD" value={character.hit_die ?? '—'} />
+            {hasPsionicist(classEntries) && (
+              <StatBlock
+                label="PSP"
+                value={`${character.psp_current ?? '—'}/${character.psp_max ?? '—'}`}
+              />
+            )}
           </div>
 
           <div className="shrink-0 flex gap-2 flex-wrap justify-end">
-            <Button variant="ghost" size="sm" onClick={() => setShowImport(v => !v)}>
-              D&amp;D Beyond
-            </Button>
             <Button variant="ghost" size="sm" as="a" href={editHref}>
               Edit
             </Button>
@@ -260,70 +224,23 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
 
         {/* ── Rest buttons ─────────────────────────────────────────── */}
         <div className="flex items-center gap-3">
-          {restConfirm === null ? (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setRestConfirm('short')}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                </svg>
-                Short Rest
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setRestConfirm('long')}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-                Long Rest
-              </Button>
-            </>
+          {!restConfirm ? (
+            <Button variant="ghost" size="sm" onClick={() => setRestConfirm(true)}>
+              Overnight Rest
+            </Button>
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-xs text-[var(--color-text-dim)]">
-                {restConfirm === 'short'
-                  ? 'Short rest: recover per-short-rest resources?'
-                  : 'Long rest: restore HP and all resources?'}
+                Recover 1 HP and rememorize spells?
               </span>
-              <Button variant="rune" size="sm" onClick={() => doRest(restConfirm)}>Confirm</Button>
-              <Button variant="ghost" size="sm" onClick={() => setRestConfirm(null)}>Cancel</Button>
+              <Button variant="rune" size="sm" onClick={doRest}>Confirm</Button>
+              <Button variant="ghost" size="sm" onClick={() => setRestConfirm(false)}>Cancel</Button>
             </div>
           )}
           <span className="text-[10px] text-[var(--color-text-dim)] opacity-50 ml-auto">
             HP {character.current_hp}/{character.max_hp}
-            {character.temp_hp > 0 && ` (+${character.temp_hp} temp)`}
           </span>
         </div>
-
-        {/* ── D&D Beyond import panel ──────────────────────────────── */}
-        {showImport && (
-          <div className="runic-card p-4 border border-[var(--color-rune-dim)]">
-            <p className="text-xs text-[var(--color-rune)] uppercase tracking-widest font-heading mb-3">Import from D&amp;D Beyond</p>
-            <p className="text-xs text-[var(--color-text-dim)] mb-3 leading-relaxed">
-              Paste your D&amp;D Beyond character URL. The character must be set to public sharing.
-              This will overwrite stats, class, race, and HP from D&amp;D Beyond data.
-            </p>
-            <form onSubmit={submitImport} className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Input
-                  label="Character URL"
-                  value={importForm.data.dnd_beyond_url}
-                  onChange={e => importForm.setData('dnd_beyond_url', e.target.value)}
-                  placeholder="https://www.dndbeyond.com/profile/.../characters/12345"
-                  error={importForm.errors.dnd_beyond_url}
-                />
-              </div>
-              <Button type="submit" variant="rune" size="sm" disabled={importForm.processing}>
-                {importForm.processing ? 'Importing…' : 'Import'}
-              </Button>
-            </form>
-          </div>
-        )}
 
         {/* ── Ability scores ────────────────────────────────────────── */}
         <div className="grid grid-cols-6 gap-2">
@@ -331,7 +248,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
             <div key={key} className="runic-card p-3 flex flex-col items-center gap-1">
               <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">{label}</span>
               <span className="font-heading text-xl text-[var(--color-text-white)] leading-none">{character[key]}</span>
-              <span className="text-sm text-[var(--color-rune)] font-mono">{mod(character[key] as number)}</span>
+              <span className="text-sm text-[var(--color-rune)] font-mono">{adj(key, character[key] as number)}</span>
             </div>
           ))}
         </div>
@@ -358,31 +275,51 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
         {/* ── Tab content ──────────────────────────────────────────── */}
         {tab === 'stats' && (
           <div className="grid grid-cols-2 gap-4">
-            {/* Saving throws */}
             <Card>
-              <CardHeader title="Saving Throws" />
+              <CardHeader title="Saving Throws" subtitle="Roll this number or higher" />
               <div className="flex flex-col gap-1">
-                {abilities.map(({ label, key }) => {
-                  const base = Math.floor((character[key] as number - 10) / 2)
-                  const prof = character.saving_throw_proficiencies?.some(s => s.toLowerCase() === key) ?? false
-                  const total = base + (prof ? character.proficiency_bonus : 0)
+                {SAVE_CATEGORIES.map(cat => {
+                  const target = character.saving_throws?.[cat.key] ?? 20
                   return (
-                    <SkillRow key={key} label={label} value={total >= 0 ? `+${total}` : `${total}`} proficient={prof} />
+                    <SkillRow key={cat.key} label={cat.label} value={String(target)} proficient />
                   )
                 })}
               </div>
             </Card>
 
-            {/* Skills */}
             <Card>
-              <CardHeader title="Skills" />
-              <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                {SKILLS.map(skill => {
-                  const s = skillMod(skill)
-                  return (
-                    <SkillRow key={skill.name} label={skill.name} value={s.value} proficient={s.proficient ?? false} expert={s.expert} />
-                  )
-                })}
+              <CardHeader title="Proficiencies" />
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Weapons</p>
+                  <p className="text-xs text-[var(--color-text-base)]">
+                    {(character.weapon_proficiencies ?? []).join(', ') || 'None recorded'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Non-weapon</p>
+                  <p className="text-xs text-[var(--color-text-base)]">
+                    {(character.nonweapon_proficiencies ?? []).join(', ') || 'None recorded'}
+                  </p>
+                </div>
+                {hasPsionicist(classEntries) && (
+                  <div data-testid="psionicist-sheet">
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Known powers</p>
+                    <p className="text-xs text-[var(--color-text-base)]">
+                      {(character.psionic_powers ?? []).filter(Boolean).join(', ') || 'None recorded'}
+                    </p>
+                  </div>
+                )}
+                {character.priest_spheres && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] mb-1">Spheres</p>
+                    <p className="text-xs text-[var(--color-text-base)]">
+                      Major: {(character.priest_spheres.major ?? []).join(', ') || '—'}
+                      <br />
+                      Minor: {(character.priest_spheres.minor ?? []).join(', ') || '—'}
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -405,28 +342,16 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
               </div>
             </Card>
 
-            {/* Death saves */}
-            {character.current_hp === 0 && (
+            {vitality !== 'ok' && (
               <Card>
-                <CardHeader title="Death Saves" />
-                <div className="flex gap-6">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-[var(--color-success)] uppercase tracking-widest">Successes</span>
-                    <div className="flex gap-1">
-                      {[0,1,2].map(i => (
-                        <div key={i} className={`w-4 h-4 rounded-full border ${i < character.death_save_successes ? 'bg-[var(--color-success)] border-[var(--color-success)]' : 'border-[var(--color-border)]'}`} />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-[var(--color-danger)] uppercase tracking-widest">Failures</span>
-                    <div className="flex gap-1">
-                      {[0,1,2].map(i => (
-                        <div key={i} className={`w-4 h-4 rounded-full border ${i < character.death_save_failures ? 'bg-[var(--color-danger)] border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <CardHeader title="Vitality" />
+                <p className="text-sm text-[var(--color-danger)]">
+                  {vitality === 'dead'
+                    ? 'This character has reached −10 hit points and is dead.'
+                    : vitality === 'dying'
+                      ? 'Below 0 hit points: dying. Death at −10.'
+                      : 'At 0 hit points: unconscious.'}
+                </p>
               </Card>
             )}
           </div>
@@ -447,25 +372,25 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
 
         {tab === 'spells' && (
           <div className="flex flex-col gap-3">
-            {/* ── Spell slot tracker ──────────────────────────────── */}
-            {hasSpellSlots && character.spell_slots && Object.keys(character.spell_slots).length > 0 && (
+            {/* ── Memorization capacity tracker ───────────────────── */}
+            {hasMemorization && character.memorization && Object.keys(character.memorization).length > 0 && (
               <Card>
                 <CardHeader
-                  title="Spell Slots"
-                  subtitle="Click a pip to use · right-click to recover"
+                  title="Memorized (capacity)"
+                  subtitle="Click a pip to cast · right-click to restore"
                 />
                 <div className="flex flex-col gap-3">
-                  {Object.entries(character.spell_slots)
+                  {Object.entries(character.memorization)
                     .filter(([, max]) => (max as number) > 0)
                     .sort(([a], [b]) => Number(a) - Number(b))
                     .map(([level, maxRaw]) => {
                       const max = maxRaw as number
-                      const used = (character.spell_slots_used?.[level] ?? 0) as number
+                      const used = (character.memorization_used?.[level] ?? 0) as number
                       const remaining = max - used
                       return (
                         <div key={level} className="flex items-center gap-3">
                           <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)] w-16 shrink-0">
-                            {level === '0' ? 'Cantrip' : `Level ${level}`}
+                            {`Level ${level}`}
                           </span>
                           <div className="flex gap-1.5 flex-wrap flex-1">
                             {Array.from({ length: max }).map((_, i) => {
@@ -495,39 +420,17 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
                     })}
                 </div>
                 <p className="text-[10px] text-[var(--color-text-dim)] opacity-50 mt-2">
-                  Left-click to use a slot · Right-click an empty slot to recover it · Long rest restores all slots
+                  Left-click to cast · Right-click to restore · Overnight rest rememorizes everything
                 </p>
               </Card>
             )}
 
-            {/* ── Spell list ───────────────────────────────────────── */}
-            {!character.spells || character.spells.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-dim)] text-center py-8">No spells recorded.</p>
-            ) : (
-              Object.entries(
-                character.spells.reduce((acc, spell) => {
-                  const lvl = spell.level
-                  if (!acc[lvl]) acc[lvl] = []
-                  acc[lvl].push(spell)
-                  return acc
-                }, {} as Record<number, typeof character.spells>)
-              ).sort(([a],[b]) => Number(a) - Number(b)).map(([level, spells]) => (
-                <div key={level}>
-                  <p className="text-xs uppercase tracking-widest text-[var(--color-rune)] mb-2">
-                    {level === '0' ? 'Cantrips' : `Level ${level} Spells`}
-                  </p>
-                  {spells!.map(spell => (
-                    <div key={spell.id} className="runic-card px-3 py-2 mb-1 flex items-center gap-2">
-                      {spell.is_prepared && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-rune)] shrink-0" />}
-                      <span className="text-sm text-[var(--color-text-bright)]">{spell.name}</span>
-                      {spell.school && <span className="text-[10px] text-[var(--color-text-dim)] ml-auto">{spell.school}</span>}
-                      {spell.concentration && <Badge variant="arcane">C</Badge>}
-                      {spell.ritual && <Badge variant="muted">R</Badge>}
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
+            <SpellsTab
+              characterId={character.id}
+              characterClass={character.class}
+              spells={character.spells ?? []}
+              memorization={character.memorization}
+            />
           </div>
         )}
 
@@ -563,10 +466,10 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
         {tab === 'notes' && (
           <div className="grid grid-cols-2 gap-4">
             {[
-              { label: 'Personality Traits', value: character.personality_traits },
-              { label: 'Ideals', value: character.ideals },
-              { label: 'Bonds', value: character.bonds },
-              { label: 'Flaws', value: character.flaws },
+              { label: 'Mannerisms', value: character.mannerisms },
+              { label: 'Motivations', value: character.motivations },
+              { label: 'Ties', value: character.ties },
+              { label: 'Weaknesses', value: character.weaknesses },
             ].map(({ label, value }) => (
               <Card key={label}>
                 <CardHeader title={label} />
@@ -616,7 +519,7 @@ function ClassFeaturesDisplay({ cf, updateUrl, characterClass, level }: { cf: CF
   const [local, setLocal] = useState<CF>({ ...cf })
 
   // Lay on Hands — fall back to level*5 for Paladins who haven't saved keys yet
-  const defaultLayMax = characterClass === 'Paladin' && level ? level * 5 : null
+  const defaultLayMax = characterClass === 'Paladin' && level ? level * 2 : null
   const layMax = typeof local.lay_on_hands_max === 'number'
     ? local.lay_on_hands_max
     : defaultLayMax
@@ -730,8 +633,8 @@ const ITEM_CATEGORIES = [
 ]
 
 const WEAPON_PROPERTIES = [
-  'Finesse', 'Light', 'Heavy', 'Reach', 'Thrown', 'Two-Handed',
-  'Versatile', 'Ammunition', 'Loading', 'Range', 'Special',
+  'Size S', 'Size M', 'Size L', 'Type P', 'Type S', 'Type B',
+  'Thrown', 'Two-handed', 'Speed 2', 'Speed 4', 'Speed 6', 'Speed 8', 'Speed 10',
 ]
 
 function cpToDisplay(cp: number): string {
@@ -755,9 +658,7 @@ type ItemFormData = {
   weight: string
   value_cp: string
   equipped: boolean
-  attuned: boolean
   is_magical: boolean
-  requires_attunement: boolean
   description: string
   properties: string[]
 }
@@ -769,9 +670,7 @@ const emptyItemForm = (): ItemFormData => ({
   weight: '0',
   value_cp: '0',
   equipped: false,
-  attuned: false,
   is_magical: false,
-  requires_attunement: false,
   description: '',
   properties: [],
 })
@@ -784,9 +683,7 @@ function itemToFormData(item: InventoryItem): ItemFormData {
     weight: String(item.weight),
     value_cp: String(item.value_cp),
     equipped: item.equipped,
-    attuned: item.attuned,
     is_magical: item.is_magical,
-    requires_attunement: item.requires_attunement,
     description: item.description ?? '',
     properties: item.properties ?? [],
   }
@@ -807,14 +704,8 @@ function InventoryTab({ character }: { character: Character }) {
   // Totals
   const totalWeight = items.reduce((s, i) => s + Number(i.weight) * i.quantity, 0)
   const totalValue = items.reduce((s, i) => s + i.value_cp * i.quantity, 0)
-  const attuned = items.filter(i => i.attuned).length
-
   const toggleEquip = (item: InventoryItem) => {
     router.patch(`${inventoryBase}/${item.id}/equip`, {}, { preserveScroll: true })
-  }
-
-  const toggleAttune = (item: InventoryItem) => {
-    router.patch(`${inventoryBase}/${item.id}/attune`, {}, { preserveScroll: true })
   }
 
   const deleteItem = (item: InventoryItem) => {
@@ -863,9 +754,6 @@ function InventoryTab({ character }: { character: Character }) {
         <span><span className="font-mono text-[var(--color-text-base)]">{items.length}</span> items</span>
         <span><span className="font-mono text-[var(--color-text-base)]">{totalWeight.toFixed(1)}</span> lb total</span>
         <span><span className="font-mono text-[var(--color-text-base)]">{cpToDisplay(totalValue)}</span> total value</span>
-        {attuned > 0 && (
-          <span><span className="font-mono text-[var(--color-rune-bright)]">{attuned}/3</span> attuned</span>
-        )}
         <div className="ml-auto flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => setShowSnapshots(v => !v)}>
             {showSnapshots ? 'Hide History' : 'History'}
@@ -960,7 +848,6 @@ function InventoryTab({ character }: { character: Character }) {
                       <span className="text-[var(--color-text-bright)] flex-1">{item.name}</span>
                       {item.quantity > 1 && <span className="text-[var(--color-text-dim)]">×{item.quantity}</span>}
                       {item.is_magical && <Badge variant="arcane">M</Badge>}
-                      {item.attuned && <Badge variant="rune">A</Badge>}
                       {item.category && <span className="text-[var(--color-text-dim)]">{item.category}</span>}
                     </div>
                   ))}
@@ -993,7 +880,6 @@ function InventoryTab({ character }: { character: Character }) {
                     key={item.id}
                     item={item}
                     onEquip={() => toggleEquip(item)}
-                    onAttune={() => toggleAttune(item)}
                     onEdit={() => startEdit(item)}
                     onDelete={() => deleteItem(item)}
                   />
@@ -1010,13 +896,11 @@ function InventoryTab({ character }: { character: Character }) {
 function ItemRow({
   item,
   onEquip,
-  onAttune,
   onEdit,
   onDelete,
 }: {
   item: InventoryItem
   onEquip: () => void
-  onAttune: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -1061,27 +945,6 @@ function ItemRow({
 
         {/* Badges */}
         {item.is_magical && <Badge variant="arcane">Magical</Badge>}
-        {item.attuned && <Badge variant="rune">Attuned</Badge>}
-
-        {/* Attune toggle */}
-        {item.requires_attunement && !item.attuned && (
-          <button
-            onClick={onAttune}
-            className="text-[10px] text-[var(--color-text-dim)] hover:text-[var(--color-rune)] transition-colors shrink-0"
-            title="Attune"
-          >
-            Attune
-          </button>
-        )}
-        {item.attuned && (
-          <button
-            onClick={onAttune}
-            className="text-[10px] text-[var(--color-text-dim)] hover:text-[var(--color-danger)] transition-colors shrink-0"
-            title="Remove attunement"
-          >
-            Unattune
-          </button>
-        )}
 
         {/* Edit / Delete */}
         <button
@@ -1230,8 +1093,6 @@ function ItemForm({
         {([
           ['equipped', 'Equipped'],
           ['is_magical', 'Magical'],
-          ['requires_attunement', 'Requires Attunement'],
-          ['attuned', 'Attuned'],
         ] as [keyof ItemFormData, string][]).map(([key, label]) => (
           <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
             <input

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Head, router, usePage } from '@inertiajs/react'
 import { Button } from '@/Components/Button'
 import { Input, Select } from '@/Components/Input'
+import { SetupLog } from '@/Components/SetupLog'
 import { PageProps } from '@/types'
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -100,6 +101,9 @@ export default function Onboarding({ python_status, python_error }: Props) {
   const [currentPythonError, setCurrentPythonError] = useState<string | null>(
     python_setup?.error ?? python_error ?? null
   )
+  const [currentPythonLog, setCurrentPythonLog] = useState<string>(
+    python_setup?.log ?? ''
+  )
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Sync from shared prop when page updates
@@ -107,8 +111,9 @@ export default function Onboarding({ python_status, python_error }: Props) {
     if (python_setup) {
       setCurrentPythonStatus(python_setup.status)
       setCurrentPythonError(python_setup.error ?? null)
+      setCurrentPythonLog(python_setup.log ?? '')
     }
-  }, [python_setup?.status, python_setup?.error])
+  }, [python_setup?.status, python_setup?.error, python_setup?.log])
 
   useEffect(() => {
     if (currentPythonStatus === 'running') {
@@ -134,6 +139,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
       zai_api_key: zaiKey,
       zai_model: zaiModel,
       whisperx_model: whisperModel,
+      whisperx_languages: 'en,es',
     }, {
       preserveScroll: true,
       onFinish: () => setSavingLlm(false),
@@ -182,7 +188,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
                     Welcome, Chronicler
                   </h1>
                   <p className="text-sm text-[var(--color-text-dim)] leading-relaxed max-w-sm">
-                    Lorefire is your local-first chronicle for 5e campaigns — built for the table, running entirely on your machine.
+                    Lorefire 2E is your local-first chronicle for AD&amp;D 2nd Edition campaigns — built for the table, running entirely on your machine.
                     Let's take a few moments to get everything ready.
                   </p>
                 </div>
@@ -221,7 +227,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
                 label="Whisper Model Size"
                 value={whisperModel}
                 onChange={e => setWhisperModel(e.target.value)}
-                hint="Larger models are more accurate but slower. 'base' is recommended for most Macs."
+                hint="Multilingual only (English and Spanish). English-only *.en checkpoints are not used."
               >
                 <option value="tiny">tiny — fastest, lowest accuracy</option>
                 <option value="base">base — good balance (recommended)</option>
@@ -251,6 +257,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
               <PythonStatusBlock
                 status={currentPythonStatus}
                 error={currentPythonError}
+                log={currentPythonLog}
               />
 
               <div className="flex items-center justify-between mt-2">
@@ -273,10 +280,9 @@ export default function Onboarding({ python_status, python_error }: Props) {
                   )}
                   <Button
                     variant="rune"
-                    disabled={currentPythonStatus === 'running'}
                     onClick={() => setStep('llm')}
                   >
-                    {currentPythonStatus === 'running' ? 'Setting up…' : 'Continue'}
+                    {currentPythonStatus === 'running' ? 'Continue (setup keeps running)' : 'Continue'}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
@@ -478,9 +484,11 @@ function FeatureRow({ icon, label, desc }: { icon: string; label: string; desc: 
 function PythonStatusBlock({
   status,
   error,
+  log,
 }: {
   status: Props['python_status']
   error: string | null
+  log?: string | null
 }) {
   const configs = {
     not_started: {
@@ -499,7 +507,7 @@ function PythonStatusBlock({
       border: 'var(--color-warning)',
       icon: <Spinner />,
       title: 'Setting Up…',
-      body: 'Installing WhisperX and dependencies. This may take a few minutes.',
+      body: 'Installing WhisperX and dependencies (CPU wheels). First run can take 10–20 minutes. Progress appears below. If the log stalls for 10 minutes, setup will stop with an error instead of spinning forever.',
     },
     ready: {
       color: 'var(--color-success)',
@@ -533,9 +541,15 @@ function PythonStatusBlock({
       style={{ borderColor: c.border, color: c.color }}
     >
       <span className="shrink-0 mt-0.5">{c.icon}</span>
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-heading tracking-wide">{c.title}</p>
         <p className="text-xs opacity-70 mt-0.5 leading-relaxed">{c.body}</p>
+        {(status === 'running' || status === 'failed') && (
+          <SetupLog
+            log={log}
+            emptyHint={status === 'running' ? 'Waiting for setup log…' : undefined}
+          />
+        )}
       </div>
     </div>
   )

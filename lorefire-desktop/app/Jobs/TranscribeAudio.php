@@ -68,15 +68,16 @@ class TranscribeAudio implements ShouldQueue
         $audioPath      = str_replace('/', DIRECTORY_SEPARATOR, Storage::path($this->session->audio_path));
         $transcriptJson = str_replace('/', DIRECTORY_SEPARATOR, Storage::path("sessions/{$this->session->id}/transcript/transcript.json"));
 
-        $model    = \App\Models\AppSetting::get('whisperx_model', 'base');
-        $language = \App\Models\AppSetting::get('whisperx_language', 'en');
+        $model    = \App\Support\WhisperxLanguages::coerceModel(
+            (string) \App\Models\AppSetting::get('whisperx_model', 'base')
+        );
         $hfToken  = \App\Models\AppSetting::get('huggingface_token', '');
 
         $diarizeEnabled = ! empty($hfToken);
         \Illuminate\Support\Facades\Log::info('[TranscribeAudio] Starting', [
             'session'  => $this->session->id,
             'model'    => $model,
-            'language' => $language,
+            'languages' => \App\Support\WhisperxLanguages::csv(),
             'diarize'  => $diarizeEnabled,
             'hf_token_set' => $diarizeEnabled,
         ]);
@@ -84,20 +85,15 @@ class TranscribeAudio implements ShouldQueue
         $venvPython     = app(\App\Services\PythonSetupService::class)->venvPythonPath();
         $whisperxScript = base_path(implode(DIRECTORY_SEPARATOR, ['resources', 'python', 'run_whisperx.py']));
 
-        $cmd = [
+        $cmd = \App\Support\WhisperxLanguages::command(
             $venvPython,
             $whisperxScript,
-            '--audio',    $audioPath,
-            '--output',   $transcriptJson,
-            '--model',    $model,
-            '--language', $language,
-        ];
-
-        if ($diarizeEnabled) {
-            $cmd[] = '--diarize';
-            $cmd[] = '--hf-token';
-            $cmd[] = $hfToken;
-        }
+            $audioPath,
+            $transcriptJson,
+            $diarizeEnabled,
+            (string) $hfToken,
+            $model,
+        );
 
         $process = new Process($cmd);
         $process->setTimeout(3600);

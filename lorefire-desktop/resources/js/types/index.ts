@@ -29,6 +29,8 @@ export interface Character {
   subrace: string | null
   class: string
   subclass: string | null
+  class_path: 'single' | 'multi' | 'dual'
+  class_levels: Array<{ class: string; level: number }> | null
   level: number
   background: string | null
   alignment: string | null
@@ -41,35 +43,36 @@ export interface Character {
   charisma: number
   max_hp: number
   current_hp: number
-  temp_hp: number
   armor_class: number
-  initiative_bonus: number
+  thac0: number
   speed: number
-  proficiency_bonus: number
-  death_save_successes: number
-  death_save_failures: number
-  saving_throw_proficiencies: string[] | null
-  skill_proficiencies: string[] | null
-  skill_expertises: string[] | null
+  hit_die: string | null
+  exceptional_strength: string | null
+  saving_throws: Record<string, number> | null
+  weapon_proficiencies: string[] | null
+  nonweapon_proficiencies: string[] | null
+  priest_spheres: { major?: string[]; minor?: string[] } | null
   copper: number
   silver: number
   electrum: number
   gold: number
   platinum: number
   spellcasting_ability: string | null
-  spell_slots: Record<string, number> | null
-  spell_slots_used: Record<string, number> | null
-  personality_traits: string | null
-  ideals: string | null
-  bonds: string | null
-  flaws: string | null
+  memorization: Record<string, number> | null
+  memorization_used: Record<string, number> | null
+  mannerisms: string | null
+  motivations: string | null
+  ties: string | null
+  weaknesses: string | null
   backstory: string | null
   appearance_description: string | null
   portrait_path: string | null
   portrait_generation_status: 'idle' | 'generating' | 'done' | 'failed'
   portrait_style: 'lifelike' | 'renaissance' | 'comic'
-  dnd_beyond_url: string | null
   class_features: Record<string, unknown> | null
+  psp_current: number | null
+  psp_max: number | null
+  psionic_powers: string[] | null
   campaign?: Campaign
   spells?: CharacterSpell[]
   inventory_items?: InventoryItem[]
@@ -90,10 +93,12 @@ export interface CharacterSpell {
   range: string | null
   components: string | null
   duration: string | null
-  concentration: boolean
-  ritual: boolean
   description: string | null
   is_prepared: boolean
+  is_cast: boolean
+  times_memorized: number
+  times_cast: number
+  remaining_memorized?: number
 }
 
 export interface InventoryItem {
@@ -105,9 +110,7 @@ export interface InventoryItem {
   weight: number
   value_cp: number
   equipped: boolean
-  attuned: boolean
   is_magical: boolean
-  requires_attunement: boolean
   description: string | null
   properties: string[] | null
 }
@@ -141,7 +144,6 @@ export interface CharacterCondition {
   id: number
   character_id: number
   condition: string
-  exhaustion_level: number
   notes: string | null
 }
 
@@ -261,6 +263,7 @@ export interface AppSettings {
   zai_plan: string | null
   zai_base_url: string | null
   whisperx_model: string | null
+  whisperx_languages: string | null
   whisperx_language: string | null
   huggingface_token: string | null
   default_art_style: string | null
@@ -281,6 +284,8 @@ export interface PageProps {
   python_setup?: {
     status: 'not_started' | 'running' | 'ready' | 'failed'
     error?: string | null
+    log?: string | null
+    started_at?: number | null
     onboarding_complete: boolean
   }
 }

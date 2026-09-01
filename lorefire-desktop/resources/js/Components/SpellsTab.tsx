@@ -3,6 +3,8 @@ import { router } from '@inertiajs/react'
 import { CharacterSpell } from '@/types'
 import { Button } from '@/Components/Button'
 import { Input, Select, Textarea } from '@/Components/Input'
+import { MemorizedControl } from '@/Components/MemorizedControl'
+import { memorizedCopyTotal, remainingCopyTotal, remainingMemorizedOf, slotCapacityAtLevel, timesMemorizedOf } from '@/lib/adnd2e'
 
 // ── Spell school colours ──────────────────────────────────────────────
 const SCHOOL_COLORS: Record<string, string> = {
@@ -19,7 +21,6 @@ const SCHOOL_COLORS: Record<string, string> = {
 const SCHOOLS = Object.keys(SCHOOL_COLORS)
 
 const SPELL_LEVEL_LABELS: Record<number, string> = {
-  0: 'Cantrips',
   1: '1st Level',
   2: '2nd Level',
   3: '3rd Level',
@@ -32,89 +33,44 @@ const SPELL_LEVEL_LABELS: Record<number, string> = {
 }
 
 // ── Suggested spells by class ─────────────────────────────────────────
-// A curated set of iconic spells per class to seed the "quick add" picker.
-// level 0 = cantrip.
-const CLASS_SPELL_SUGGESTIONS: Record<string, Array<{ name: string; level: number; school: string; casting_time: string; range: string; components: string; duration: string; concentration: boolean; ritual: boolean }>> = {
-  Artificer: [
-    { name: 'Mending',            level: 0, school: 'transmutation', casting_time: '1 minute', range: 'Touch', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Cure Wounds',        level: 1, school: 'evocation',     casting_time: '1 action',  range: 'Touch', components: 'V, S',     duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Faerie Fire',        level: 1, school: 'evocation',     casting_time: '1 action',  range: '60 ft', components: 'V',        duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Web',                level: 2, school: 'conjuration',   casting_time: '1 action',  range: '60 ft', components: 'V, S, M',  duration: '1 hour',        concentration: true,  ritual: false },
+// Names and school tags only — no copyrighted rulebook text.
+const CLASS_SPELL_SUGGESTIONS: Record<string, Array<{ name: string; level: number; school: string; casting_time: string; range: string; components: string; duration: string }>> = {
+  Mage: [
+    { name: 'Armor',              level: 1, school: 'abjuration',    casting_time: '1 round', range: 'Touch', components: 'V, S, M', duration: 'Special' },
+    { name: 'Burning Hands',      level: 1, school: 'invocation',    casting_time: '1', range: '0', components: 'V, S', duration: 'Instantaneous' },
+    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special' },
+    { name: 'Detect Magic',       level: 1, school: 'divination',    casting_time: '1', range: '0', components: 'V, S', duration: '2 rds/level' },
+    { name: 'Magic Missile',      level: 1, school: 'invocation',    casting_time: '1', range: '60 yds + 10 yds/level', components: 'V, S', duration: 'Instantaneous' },
+    { name: 'Sleep',              level: 1, school: 'enchantment',   casting_time: '1', range: '30 yds', components: 'V, S, M', duration: '5 rds/level' },
+    { name: 'Invisibility',       level: 2, school: 'illusion',      casting_time: '2', range: 'Touch', components: 'V, S, M', duration: 'Special' },
+    { name: 'Web',                level: 2, school: 'invocation',    casting_time: '2', range: '5 yds/level', components: 'V, S, M', duration: '2 turns/level' },
+    { name: 'Fireball',           level: 3, school: 'invocation',    casting_time: '3', range: '10 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous' },
+    { name: 'Lightning Bolt',     level: 3, school: 'invocation',    casting_time: '3', range: '40 yds + 10 yds/level', components: 'V, S, M', duration: 'Instantaneous' },
   ],
-  Barbarian: [],
   Bard: [
-    { name: 'Vicious Mockery',    level: 0, school: 'enchantment',   casting_time: '1 action',  range: '60 ft', components: 'V',       duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Prestidigitation',   level: 0, school: 'transmutation', casting_time: '1 action',  range: '10 ft', components: 'V, S',    duration: '1 hour',        concentration: false, ritual: false },
-    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1 action',  range: '30 ft', components: 'V, S',    duration: '1 hour',        concentration: false, ritual: false },
-    { name: 'Healing Word',       level: 1, school: 'evocation',     casting_time: '1 bonus action', range: '60 ft', components: 'V', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Hypnotic Pattern',   level: 3, school: 'illusion',      casting_time: '1 action',  range: '120 ft', components: 'S, M',  duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Dimension Door',     level: 4, school: 'conjuration',   casting_time: '1 action',  range: '500 ft', components: 'V',     duration: 'Instantaneous', concentration: false, ritual: false },
+    { name: 'Charm Person',       level: 1, school: 'enchantment',   casting_time: '1', range: '120 yds', components: 'V, S', duration: 'Special' },
+    { name: 'Friends',            level: 1, school: 'enchantment',   casting_time: '1', range: '0', components: 'V, S, M', duration: '1d4 rds + 1 rd/level' },
+    { name: 'Identify',           level: 1, school: 'divination',    casting_time: 'Special', range: '0', components: 'V, S, M', duration: '1 rd/level' },
   ],
   Cleric: [
-    { name: 'Sacred Flame',       level: 0, school: 'evocation',     casting_time: '1 action',  range: '60 ft', components: 'V, S',    duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Guidance',           level: 0, school: 'divination',    casting_time: '1 action',  range: 'Touch', components: 'V, S',    duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Cure Wounds',        level: 1, school: 'evocation',     casting_time: '1 action',  range: 'Touch', components: 'V, S',    duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Healing Word',       level: 1, school: 'evocation',     casting_time: '1 bonus action', range: '60 ft', components: 'V', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Bless',              level: 1, school: 'enchantment',   casting_time: '1 action',  range: '30 ft', components: 'V, S, M', duration: '1 minute',     concentration: true,  ritual: false },
-    { name: 'Spiritual Weapon',   level: 2, school: 'evocation',     casting_time: '1 bonus action', range: '60 ft', components: 'V, S', duration: '1 minute',  concentration: false, ritual: false },
-    { name: 'Spirit Guardians',   level: 3, school: 'conjuration',   casting_time: '1 action',  range: 'Self (15 ft)', components: 'V, S, M', duration: '10 minutes', concentration: true, ritual: false },
-    { name: 'Banishment',         level: 4, school: 'abjuration',    casting_time: '1 action',  range: '60 ft', components: 'V, S, M', duration: '1 minute',     concentration: true,  ritual: false },
+    { name: 'Bless',              level: 1, school: 'conjuration',   casting_time: '1 rd', range: '60 yds', components: 'V, S, M', duration: '6 rds' },
+    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent' },
+    { name: 'Detect Evil',        level: 1, school: 'divination',    casting_time: '1 rd', range: '0', components: 'V, S, M', duration: '1 turn + 5 rds/level' },
+    { name: 'Hold Person',        level: 2, school: 'enchantment',   casting_time: '5', range: '120 yds', components: 'V, S, F', duration: '2 rds/level' },
   ],
   Druid: [
-    { name: 'Shillelagh',         level: 0, school: 'transmutation', casting_time: '1 bonus action', range: 'Touch', components: 'V, S, M', duration: '1 minute', concentration: false, ritual: false },
-    { name: 'Thorn Whip',         level: 0, school: 'transmutation', casting_time: '1 action',  range: '30 ft', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Healing Word',       level: 1, school: 'evocation',     casting_time: '1 bonus action', range: '60 ft', components: 'V', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Entangle',           level: 1, school: 'conjuration',   casting_time: '1 action',  range: '90 ft', components: 'V, S',    duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Moonbeam',           level: 2, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S, M', duration: '1 minute',    concentration: true,  ritual: false },
-    { name: 'Call Lightning',     level: 3, school: 'conjuration',   casting_time: '1 action',  range: '120 ft', components: 'V, S',  duration: '10 minutes',    concentration: true,  ritual: false },
-    { name: 'Polymorph',          level: 4, school: 'transmutation', casting_time: '1 action',  range: '60 ft', components: 'V, S, M', duration: '1 hour',       concentration: true,  ritual: false },
+    { name: 'Entangle',           level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V, S, G', duration: '1 turn' },
+    { name: 'Faerie Fire',        level: 1, school: 'alteration',    casting_time: '4', range: '80 yds', components: 'V', duration: '4 rds/level' },
+    { name: 'Call Lightning',     level: 3, school: 'alteration',    casting_time: '1 turn', range: '360 yds', components: 'V, S', duration: '1 turn/level' },
   ],
   Fighter: [],
-  Monk: [],
   Paladin: [
-    { name: 'Bless',              level: 1, school: 'enchantment',   casting_time: '1 action',  range: '30 ft', components: 'V, S, M', duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Shield of Faith',    level: 1, school: 'abjuration',    casting_time: '1 bonus action', range: '60 ft', components: 'V, S, M', duration: '10 minutes', concentration: true, ritual: false },
-    { name: 'Divine Smite',       level: 1, school: 'evocation',     casting_time: '1 bonus action', range: 'Self', components: 'V',      duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Aid',                level: 2, school: 'abjuration',    casting_time: '1 action',  range: '30 ft', components: 'V, S, M', duration: '8 hours',       concentration: false, ritual: false },
-    { name: 'Aura of Vitality',   level: 3, school: 'evocation',     casting_time: '1 action',  range: 'Self (30 ft)', components: 'V', duration: '1 minute',      concentration: true,  ritual: false },
+    { name: 'Cure Light Wounds',  level: 1, school: 'necromancy',    casting_time: '5', range: 'Touch', components: 'V, S', duration: 'Permanent' },
   ],
   Ranger: [
-    { name: 'Hunter\'s Mark',     level: 1, school: 'divination',    casting_time: '1 bonus action', range: '90 ft', components: 'V',  duration: '1 hour',        concentration: true,  ritual: false },
-    { name: 'Ensnaring Strike',   level: 1, school: 'conjuration',   casting_time: '1 bonus action', range: 'Self', components: 'V',    duration: '1 minute',      concentration: true,  ritual: false },
-    { name: 'Spike Growth',       level: 2, school: 'transmutation', casting_time: '1 action',  range: '150 ft', components: 'V, S, M', duration: '10 minutes',   concentration: true,  ritual: false },
-    { name: 'Lightning Arrow',    level: 3, school: 'transmutation', casting_time: '1 bonus action', range: 'Self', components: 'V, S', duration: 'Instantaneous', concentration: false, ritual: false },
+    { name: 'Animal Friendship',  level: 1, school: 'enchantment',   casting_time: '1 hr', range: 'Touch', components: 'V, S, M', duration: 'Permanent' },
   ],
-  Rogue: [],
-  Sorcerer: [
-    { name: 'Fire Bolt',          level: 0, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Prestidigitation',   level: 0, school: 'transmutation', casting_time: '1 action',  range: '10 ft', components: 'V, S',    duration: '1 hour',        concentration: false, ritual: false },
-    { name: 'Mage Armor',         level: 1, school: 'abjuration',    casting_time: '1 action',  range: 'Touch', components: 'V, S, M', duration: '8 hours',       concentration: false, ritual: false },
-    { name: 'Magic Missile',      level: 1, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Thunderwave',        level: 1, school: 'evocation',     casting_time: '1 action',  range: 'Self (15 ft)', components: 'V, S', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Scorching Ray',      level: 2, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Fireball',           level: 3, school: 'evocation',     casting_time: '1 action',  range: '150 ft', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Banishment',         level: 4, school: 'abjuration',    casting_time: '1 action',  range: '60 ft', components: 'V, S, M', duration: '1 minute',       concentration: true,  ritual: false },
-  ],
-  Warlock: [
-    { name: 'Eldritch Blast',     level: 0, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Minor Illusion',     level: 0, school: 'illusion',      casting_time: '1 action',  range: '30 ft', components: 'S, M',    duration: '1 minute',      concentration: false, ritual: false },
-    { name: 'Hex',                level: 1, school: 'enchantment',   casting_time: '1 bonus action', range: '90 ft', components: 'V, S, M', duration: '1 hour',  concentration: true,  ritual: false },
-    { name: 'Hunger of Hadar',    level: 3, school: 'conjuration',   casting_time: '1 action',  range: '150 ft', components: 'V, S, M', duration: '1 minute',    concentration: true,  ritual: false },
-    { name: 'Banishment',         level: 4, school: 'abjuration',    casting_time: '1 action',  range: '60 ft', components: 'V, S, M', duration: '1 minute',      concentration: true,  ritual: false },
-  ],
-  Wizard: [
-    { name: 'Fire Bolt',          level: 0, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Mage Hand',          level: 0, school: 'conjuration',   casting_time: '1 action',  range: '30 ft', components: 'V, S',    duration: '1 minute',      concentration: false, ritual: false },
-    { name: 'Minor Illusion',     level: 0, school: 'illusion',      casting_time: '1 action',  range: '30 ft', components: 'S, M',    duration: '1 minute',      concentration: false, ritual: false },
-    { name: 'Mage Armor',         level: 1, school: 'abjuration',    casting_time: '1 action',  range: 'Touch', components: 'V, S, M', duration: '8 hours',       concentration: false, ritual: false },
-    { name: 'Magic Missile',      level: 1, school: 'evocation',     casting_time: '1 action',  range: '120 ft', components: 'V, S',   duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Shield',             level: 1, school: 'abjuration',    casting_time: '1 reaction', range: 'Self',  components: 'V, S',   duration: '1 round',       concentration: false, ritual: false },
-    { name: 'Misty Step',         level: 2, school: 'conjuration',   casting_time: '1 bonus action', range: 'Self', components: 'V',  duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Fireball',           level: 3, school: 'evocation',     casting_time: '1 action',  range: '150 ft', components: 'V, S, M', duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Counterspell',       level: 3, school: 'abjuration',    casting_time: '1 reaction', range: '60 ft', components: 'S',      duration: 'Instantaneous', concentration: false, ritual: false },
-    { name: 'Polymorph',          level: 4, school: 'transmutation', casting_time: '1 action',  range: '60 ft', components: 'V, S, M', duration: '1 hour',        concentration: true,  ritual: false },
-    { name: 'Forcecage',          level: 7, school: 'evocation',     casting_time: '1 action',  range: '100 ft', components: 'V, S, M', duration: '1 hour',       concentration: false, ritual: false },
-  ],
+  Thief: [],
   Other: [],
 }
 
@@ -123,14 +79,12 @@ const BLANK_SPELL = {
   name: '',
   level: 1,
   school: '',
-  casting_time: '1 action',
+  casting_time: '1',
   range: '',
   components: '',
   duration: '',
-  concentration: false,
-  ritual: false,
   description: '',
-  is_prepared: false,
+  times_memorized: 0,
 }
 
 type SpellForm = typeof BLANK_SPELL
@@ -140,18 +94,20 @@ interface Props {
   characterId: number
   characterClass: string
   spells: CharacterSpell[]
+  memorization?: Record<string, number> | null
 }
 
 // ── Main component ────────────────────────────────────────────────────
-export function SpellsTab({ characterId, characterClass, spells }: Props) {
+export function SpellsTab({ characterId, characterClass, spells, memorization = null }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingSpell, setEditingSpell] = useState<CharacterSpell | null>(null)
   const [form, setForm] = useState<SpellForm>(BLANK_SPELL)
   const [submitting, setSubmitting] = useState(false)
   const [expandedSpell, setExpandedSpell] = useState<number | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'memorized'>('all')
 
-  const suggestions = CLASS_SPELL_SUGGESTIONS[characterClass] ?? CLASS_SPELL_SUGGESTIONS['Other']
+  const suggestions = CLASS_SPELL_SUGGESTIONS[characterClass] ?? CLASS_SPELL_SUGGESTIONS[characterClass === 'Wizard' ? 'Mage' : 'Other'] ?? CLASS_SPELL_SUGGESTIONS['Other']
 
   const openAdd = () => {
     setEditingSpell(null)
@@ -166,14 +122,12 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       name: spell.name,
       level: spell.level,
       school: spell.school ?? '',
-      casting_time: spell.casting_time ?? '1 action',
+      casting_time: spell.casting_time ?? '1',
       range: spell.range ?? '',
       components: spell.components ?? '',
       duration: spell.duration ?? '',
-      concentration: spell.concentration,
-      ritual: spell.ritual,
       description: spell.description ?? '',
-      is_prepared: spell.is_prepared,
+      times_memorized: timesMemorizedOf(spell),
     })
     setShowSuggestions(false)
     setModalOpen(true)
@@ -188,10 +142,8 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       range: s.range,
       components: s.components,
       duration: s.duration,
-      concentration: s.concentration,
-      ritual: s.ritual,
       description: '',
-      is_prepared: s.level === 0, // cantrips always prepared
+      times_memorized: 0,
     })
     setShowSuggestions(false)
   }
@@ -206,9 +158,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     setSubmitting(true)
     const payload = {
       ...form,
-      concentration: form.concentration ? 1 : 0,
-      ritual: form.ritual ? 1 : 0,
-      is_prepared: form.is_prepared ? 1 : 0,
+      times_memorized: form.times_memorized,
     }
     if (editingSpell) {
       router.patch(`/characters/${characterId}/spells/${editingSpell.id}`, payload, {
@@ -228,28 +178,54 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     router.delete(`/characters/${characterId}/spells/${spell.id}`, { preserveScroll: true })
   }
 
-  const togglePrepared = (spell: CharacterSpell) => {
-    if (spell.level === 0) return // cantrips always prepared
-    router.patch(`/characters/${characterId}/spells/${spell.id}/prepare`, {}, { preserveScroll: true })
+  const setMemorized = (spell: CharacterSpell, times: number) => {
+    router.patch(`/characters/${characterId}/spells/${spell.id}/prepare`, {
+      times_memorized: times,
+    }, { preserveScroll: true })
   }
 
   // Group by level
-  const byLevel = spells.reduce<Record<number, CharacterSpell[]>>((acc, s) => {
+  const visible = filter === 'memorized'
+    ? spells.filter(s => timesMemorizedOf(s) > 0)
+    : spells
+  const byLevel = visible.reduce<Record<number, CharacterSpell[]>>((acc, s) => {
     ;(acc[s.level] ??= []).push(s)
     return acc
   }, {})
   const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b)
+  const memorizedCopies = memorizedCopyTotal(spells)
+  const remainingCopies = remainingCopyTotal(spells)
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">
-          {spells.length} spell{spells.length !== 1 ? 's' : ''} known
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]" data-testid="spell-copy-summary">
+          {spells.length} known · {memorizedCopies} memorized copies
+          {memorizedCopies > 0 && remainingCopies < memorizedCopies ? ` · ${remainingCopies} left` : ''}
         </p>
-        <Button type="button" variant="ghost" size="sm" onClick={openAdd}>
-          + Add Spell
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded border overflow-hidden" style={{ borderColor: 'var(--color-border)' }} data-testid="spell-filter">
+            {(['all', 'memorized'] as const).map(key => (
+              <button
+                key={key}
+                type="button"
+                data-testid={`spell-filter-${key}`}
+                onClick={() => setFilter(key)}
+                className="px-2 py-1 text-[10px] uppercase tracking-widest"
+                style={{
+                  background: filter === key ? 'var(--color-rune)' : 'transparent',
+                  color: filter === key ? 'var(--color-text-white)' : 'var(--color-text-dim)',
+                }}
+              >
+                {key === 'all' ? 'All known' : 'Memorized'}
+              </button>
+            ))}
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={openAdd}>
+            + Add Spell
+          </Button>
+        </div>
       </div>
 
       {/* Empty state */}
@@ -267,14 +243,32 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
         </div>
       )}
 
+      {spells.length > 0 && visible.length === 0 && (
+        <p className="text-sm text-[var(--color-text-dim)] text-center py-6">
+          No memorized spells. Known spells stay on the list under All known.
+        </p>
+      )}
+
       {/* Spell list grouped by level */}
-      {levels.map(level => (
+      {levels.map(level => {
+        const copiesAtLevel = spells
+          .filter(s => s.level === level)
+          .reduce((sum, s) => sum + timesMemorizedOf(s), 0)
+        const slots = slotCapacityAtLevel(memorization, level)
+        const overSlots = slots > 0 && copiesAtLevel > slots
+        return (
         <div key={level} className="flex flex-col gap-1">
           <p
             className="text-[10px] uppercase tracking-widest font-heading mb-1"
-            style={{ color: 'var(--color-text-dim)' }}
+            style={{ color: overSlots ? 'var(--color-danger)' : 'var(--color-text-dim)' }}
+            data-testid={`spell-level-copies-${level}`}
           >
             {SPELL_LEVEL_LABELS[level] ?? `Level ${level}`}
+            {slots > 0
+              ? ` · ${copiesAtLevel} / ${slots} slots`
+              : copiesAtLevel > 0
+                ? ` · ${copiesAtLevel} ${copiesAtLevel === 1 ? 'copy' : 'copies'}`
+                : ''}
           </p>
           {byLevel[level].sort((a, b) => a.name.localeCompare(b.name)).map(spell => (
             <SpellRow
@@ -284,11 +278,12 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
               onToggleExpand={() => setExpandedSpell(expandedSpell === spell.id ? null : spell.id)}
               onEdit={() => openEdit(spell)}
               onDelete={() => deleteSpell(spell)}
-              onTogglePrepared={() => togglePrepared(spell)}
+              onSetMemorized={times => setMemorized(spell, times)}
             />
           ))}
         </div>
-      ))}
+        )
+      })}
 
       {/* Add / Edit modal */}
       {modalOpen && (
@@ -310,39 +305,35 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
 
 // ── Spell row ─────────────────────────────────────────────────────────
 function SpellRow({
-  spell, expanded, onToggleExpand, onEdit, onDelete, onTogglePrepared,
+  spell, expanded, onToggleExpand, onEdit, onDelete, onSetMemorized,
 }: {
   spell: CharacterSpell
   expanded: boolean
   onToggleExpand: () => void
   onEdit: () => void
   onDelete: () => void
-  onTogglePrepared: () => void
+  onSetMemorized: (times: number) => void
 }) {
   const schoolColor = SCHOOL_COLORS[spell.school?.toLowerCase() ?? ''] ?? 'var(--color-text-dim)'
-  const isCantrip = spell.level === 0
-
+  const times = timesMemorizedOf(spell)
+  const remaining = remainingMemorizedOf(spell)
   return (
     <div
       className="rounded border transition-colors"
+      data-testid="spell-row"
+      data-memorized={times > 0 ? 'true' : 'false'}
       style={{
-        borderColor: expanded ? 'var(--color-rune-dim)' : 'var(--color-border)',
-        background: 'var(--color-deep)',
+        borderColor: expanded || times > 0 ? 'var(--color-rune-dim)' : 'var(--color-border)',
+        background: times > 0 ? 'color-mix(in srgb, var(--color-rune) 8%, var(--color-deep))' : 'var(--color-deep)',
+        opacity: times > 0 ? 1 : 0.78,
       }}
     >
       {/* Row header */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        {/* Prepared pip — cantrips always lit */}
-        <button
-          type="button"
-          title={isCantrip ? 'Cantrips are always prepared' : spell.is_prepared ? 'Prepared — click to unprepare' : 'Unprepared — click to prepare'}
-          onClick={onTogglePrepared}
-          className="shrink-0 w-3 h-3 rounded-full border transition-colors"
-          style={{
-            borderColor: (isCantrip || spell.is_prepared) ? 'var(--color-rune)' : 'var(--color-border)',
-            background: (isCantrip || spell.is_prepared) ? 'var(--color-rune)' : 'transparent',
-            cursor: isCantrip ? 'default' : 'pointer',
-          }}
+      <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
+        <MemorizedControl
+          timesMemorized={times}
+          remaining={remaining}
+          onChange={onSetMemorized}
         />
 
         {/* Name + badges */}
@@ -356,11 +347,8 @@ function SpellRow({
 
         {/* Tags */}
         <div className="flex items-center gap-1 shrink-0">
-          {spell.concentration && (
-            <span className="px-1 py-0 text-[9px] rounded border border-[var(--color-warning)]/50 text-[var(--color-warning)] font-mono leading-4">C</span>
-          )}
-          {spell.ritual && (
-            <span className="px-1 py-0 text-[9px] rounded border border-[var(--color-rune-dim)] text-[var(--color-rune)] font-mono leading-4">R</span>
+          {times > 0 && remaining === 0 && (
+            <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>Cast</span>
           )}
           {spell.school && (
             <span
@@ -509,15 +497,9 @@ function SpellModal({
                       className="text-[9px] uppercase tracking-widest w-12 shrink-0"
                       style={{ color: SCHOOL_COLORS[s.school] ?? 'var(--color-text-dim)' }}
                     >
-                      {s.level === 0 ? 'Cantrip' : `Lvl ${s.level}`}
+                      {`Lvl ${s.level}`}
                     </span>
                     <span className="text-sm text-[var(--color-text-bright)] flex-1">{s.name}</span>
-                    {s.concentration && (
-                      <span className="text-[9px] text-[var(--color-warning)] font-mono">C</span>
-                    )}
-                    {s.ritual && (
-                      <span className="text-[9px] text-[var(--color-rune)] font-mono">R</span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -590,7 +572,7 @@ function ManualSpellForm({
             label="Spell Name"
             value={form.name}
             onChange={e => set('name', e.target.value)}
-            placeholder="Fireball, Hex, Cure Wounds…"
+            placeholder="Magic Missile, Cure Light Wounds…"
             autoFocus
           />
         </div>
@@ -599,7 +581,6 @@ function ManualSpellForm({
           value={String(form.level)}
           onChange={e => set('level', parseInt(e.target.value))}
         >
-          <option value="0">Cantrip</option>
           {[1,2,3,4,5,6,7,8,9].map(l => (
             <option key={l} value={l}>{l}{l===1?'st':l===2?'nd':l===3?'rd':'th'} Level</option>
           ))}
@@ -621,7 +602,7 @@ function ManualSpellForm({
           label="Casting Time"
           value={form.casting_time}
           onChange={e => set('casting_time', e.target.value)}
-          placeholder="1 action"
+          placeholder="1 (segments) or 1 rd"
         />
       </div>
 
@@ -655,45 +636,12 @@ function ManualSpellForm({
         placeholder="Brief description or notes…"
       />
 
-      {/* Toggles */}
       <div className="flex flex-wrap gap-3">
-        {form.level > 0 && (
-          <ToggleChip
-            label="Prepared"
-            active={form.is_prepared}
-            onClick={() => set('is_prepared', !form.is_prepared)}
-            hint="Toggle to mark this spell prepared"
-          />
-        )}
-        <ToggleChip
-          label="Concentration"
-          active={form.concentration}
-          onClick={() => set('concentration', !form.concentration)}
-        />
-        <ToggleChip
-          label="Ritual"
-          active={form.ritual}
-          onClick={() => set('ritual', !form.ritual)}
+        <MemorizedControl
+          timesMemorized={form.times_memorized}
+          onChange={times => set('times_memorized', times)}
         />
       </div>
     </>
-  )
-}
-
-function ToggleChip({ label, active, onClick, hint }: { label: string; active: boolean; onClick: () => void; hint?: string }) {
-  return (
-    <button
-      type="button"
-      title={hint}
-      onClick={onClick}
-      className="px-3 py-1.5 rounded text-xs uppercase tracking-widest border transition-colors"
-      style={{
-        borderColor: active ? 'var(--color-rune)' : 'var(--color-border)',
-        color: active ? 'var(--color-rune-bright)' : 'var(--color-text-dim)',
-        background: active ? 'var(--color-rune)1a' : 'transparent',
-      }}
-    >
-      {label}
-    </button>
   )
 }

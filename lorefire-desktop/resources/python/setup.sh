@@ -21,6 +21,13 @@
 
 set -euo pipefail
 
+export PYTHONUNBUFFERED=1
+export PYTHONIOENCODING=utf-8
+export PIP_PROGRESS_BAR=off
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_DEFAULT_TIMEOUT=60
+export PIP_NO_INPUT=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/venv"
 REQ_FILE="$SCRIPT_DIR/requirements.txt"
@@ -105,29 +112,53 @@ else
 fi
 
 VENV_PYTHON="$VENV_BIN_DIR/python"
-VENV_PIP="$VENV_BIN_DIR/pip"
 
-# -- Upgrade pip ---------------------------------------------------------
-echo "==> Upgrading pip..."
-"$VENV_PIP" install --upgrade pip setuptools wheel
+pip_install() {
+  local label="$1"
+  local timeout_sec="$2"
+  shift 2
+  echo "==> $label"
+  echo "    timeout : ${timeout_sec}s"
+  local pip_args=(
+    -m pip install
+    --no-input
+    --prefer-binary
+    --timeout 60
+    --retries 3
+    --disable-pip-version-check
+    --progress-bar off
+  )
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --foreground "$timeout_sec" "$VENV_PYTHON" "${pip_args[@]}" "$@"
+  else
+    "$VENV_PYTHON" "${pip_args[@]}" "$@"
+  fi
+}
+
+# -- Pin pip -------------------------------------------------------------
+# pip>=24.1 rejects omegaconf 2.1.0 (invalid metadata) and can retry forever.
+# Keep venv pip at 24.0.x. --upgrade pip==24.0 also downgrades pip 26.x.
+pip_install "Pinning pip to 24.0" 300 --upgrade pip==24.0 setuptools wheel
 
 # -- Install torch (CPU or CUDA) -----------------------------------------
+# GPU is optional. CPU wheels are the supported first-run path.
 if [ "$GPU" = true ]; then
-  echo "==> Installing torch (CUDA 11.8)..."
-  "$VENV_PIP" install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+  pip_install "Installing torch (CUDA 11.8, optional GPU path)" 900 \
+    torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu118
 else
-  echo "==> Installing torch (CPU only)..."
-  "$VENV_PIP" install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+  pip_install "Installing torch (CPU only)" 900 \
+    torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 fi
 
 # -- Install WhisperX and remaining deps ---------------------------------
-echo "==> Installing WhisperX and dependencies..."
-"$VENV_PIP" install -r "$REQ_FILE"
+pip_install "Installing WhisperX and dependencies" 1200 -r "$REQ_FILE"
 
-# -- Pre-download WhisperX models ----------------------------------------
-# Download during setup so transcription works without internet at runtime.
-echo "==> Pre-downloading WhisperX base model..."
-"$VENV_PYTHON" -c "
+# -- Pre-download WhisperX models (fail-soft) ----------------------------
+# Must not hang first-run setup. Models download on first transcription if this
+# step is skipped. Audio stays local either way.
+echo "==> Pre-downloading WhisperX base model (optional, 3 min cap)..."
+if command -v timeout >/dev/null 2>&1; then
+  if ! timeout --foreground 180 "$VENV_PYTHON" -c "
 import os
 cache = os.path.join(os.path.expanduser('~'), '.cache')
 os.environ['HF_HOME']    = os.path.join(cache, 'huggingface')
@@ -135,7 +166,12 @@ os.environ['TORCH_HOME'] = os.path.join(cache, 'torch')
 import whisperx
 whisperx.load_model('base', device='cpu', compute_type='int8')
 print('  base model OK')
-"
+"; then
+    echo "WARNING: model preload skipped. Models download on first local transcription."
+  fi
+else
+  echo "==> Skipping model preload (no timeout command). Models download on first transcription."
+fi
 
 # -- Verify install ------------------------------------------------------
 echo "==> Verifying installation..."

@@ -8,30 +8,22 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * Quick spell-slot toggle — increment/decrement `spell_slots_used`
- * for a given slot level without going into full edit mode.
+ * Toggle memorization capacity used for a spell level.
  */
 class CharacterSpellSlotsController extends Controller
 {
-    /**
-     * PATCH /characters/{character}/spell-slots
-     * or
-     * PATCH /campaigns/{campaign}/characters/{character}/spell-slots
-     *
-     * Body: { level: int, action: 'use'|'recover' }
-     */
     public function update(Request $request, Character $character): RedirectResponse
     {
         $data = $request->validate([
-            'level'  => 'required|integer|min:1|max:9',
+            'level' => 'required|integer|min:1|max:9',
             'action' => 'required|in:use,recover',
         ]);
 
         $level = (string) $data['level'];
-        $slots = is_array($character->spell_slots)      ? $character->spell_slots      : [];
-        $used  = is_array($character->spell_slots_used) ? $character->spell_slots_used : [];
+        $slots = is_array($character->memorization) ? $character->memorization : [];
+        $used = is_array($character->memorization_used) ? $character->memorization_used : [];
 
-        $max  = (int) ($slots[$level] ?? 0);
+        $max = (int) ($slots[$level] ?? 0);
         $curr = (int) ($used[$level] ?? 0);
 
         if ($data['action'] === 'use') {
@@ -42,15 +34,11 @@ class CharacterSpellSlotsController extends Controller
 
         $used[$level] = $curr;
 
-        $character->update(['spell_slots_used' => $used]);
+        $character->update(['memorization_used' => $used]);
 
-        return back()->with('success', "Spell slot updated.");
+        return back()->with('success', 'Memorization updated.');
     }
 
-    /**
-     * Campaign-scoped variant — same logic, just accepts the campaign route binding.
-     * PATCH /campaigns/{campaign}/characters/{character}/spell-slots
-     */
     public function updateForCampaign(Request $request, Campaign $campaign, Character $character): RedirectResponse
     {
         return $this->update($request, $character);

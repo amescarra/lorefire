@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\PythonSetupService;
+use App\Support\NativeSqliteMigrator;
 use Native\Laravel\Facades\Window;
 use Native\Laravel\Contracts\ProvidesPhpIni;
 
@@ -24,10 +25,18 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->trafficLightPosition(6, 17)
             ->rememberState();
 
+        try {
+            if (! app()->environment('testing')) {
+                NativeSqliteMigrator::migrateForce();
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[NativeApp] native:migrate failed: '.$e->getMessage());
+        }
+
         // Kick off Python/WhisperX venv setup in the background on every boot.
         // - If the venv already exists and whisperx imports cleanly, marks 'ready' instantly.
-        // - If the venv is missing or broken, runs setup.sh asynchronously.
-        // - Does nothing if setup is already in progress.
+        // - If the venv is missing or broken, runs setup asynchronously (CPU wheels).
+        // - Reaps a stuck `running` job (timeout / silent log) before starting another.
         try {
             app(PythonSetupService::class)->bootCheck();
         } catch (\Throwable $e) {

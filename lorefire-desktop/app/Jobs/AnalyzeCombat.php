@@ -14,18 +14,34 @@ class AnalyzeCombat implements ShouldQueue
 {
     use Queueable;
 
-    // Keywords that signal combat start in transcripts
+    /** @return list<string> */
+    public function combatStartCues(): array
+    {
+        return $this->combatStartKeywords;
+    }
+
+    /** @return list<string> */
+    public function combatActionCues(): array
+    {
+        return $this->actionKeywords;
+    }
+
     protected array $combatStartKeywords = [
         'roll initiative', 'roll for initiative', 'initiative order',
         'combat begins', 'battle starts', 'initiative',
-        'you enter combat', 'roll perception', 'surprised',
+        'you enter combat', 'surprised', 'surprise round',
+        'thac0', 'roll for surprise', 'check for surprise',
+        'segment', 'weapon speed', 'morale check',
+        'descending armor class', 'armor class',
     ];
 
-    // Keywords that signal combat actions
     protected array $actionKeywords = [
-        'attacks', 'casts', 'uses', 'misses', 'hits', 'crits', 'critical hit',
-        'deals', 'damage', 'heals', 'healing', 'bonus action', 'action',
-        'saves', 'fails', 'succeeds', 'rolls', 'advantage', 'disadvantage',
+        'attacks', 'casts', 'uses', 'misses', 'hits',
+        'deals', 'damage', 'heals', 'healing', 'melee', 'missile',
+        'saves', 'fails', 'succeeds', 'rolls', 'thac0', 'weapon speed',
+        'segments', 'segment', 'parry', 'retreat', 'charge',
+        'saving throw', 'surprise', 'initiative', 'morale',
+        'number needed', 'to hit',
     ];
 
     public function __construct(public GameSession $session) {}

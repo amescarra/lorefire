@@ -36,8 +36,18 @@ class OnboardingController extends Controller
             'ollama_model'      => 'nullable|string',
             'zai_api_key'       => 'nullable|string',
             'zai_model'         => 'nullable|string',
-            'whisperx_model'    => 'nullable|string',
+            'whisperx_model'    => 'nullable|string|max:40',
+            'whisperx_languages'=> 'nullable|string|max:20',
         ]);
+
+        if (array_key_exists('whisperx_model', $validated) && $validated['whisperx_model'] !== null) {
+            $validated['whisperx_model'] = \App\Support\WhisperxLanguages::coerceModel($validated['whisperx_model']);
+        }
+        if (! empty($validated['whisperx_languages'])) {
+            $validated['whisperx_languages'] = \App\Support\WhisperxLanguages::csv(
+                \App\Support\WhisperxLanguages::parse($validated['whisperx_languages'])
+            );
+        }
 
         foreach ($validated as $key => $value) {
             if ($value !== null) {
@@ -84,7 +94,7 @@ class OnboardingController extends Controller
      */
     public function retryPython(): \Illuminate\Http\RedirectResponse
     {
-        $this->pythonSetup->runSetupAsync();
+        $this->pythonSetup->runSetupAsync(force: true);
         return back()->with('info', 'Python setup restarted in the background.');
     }
 }

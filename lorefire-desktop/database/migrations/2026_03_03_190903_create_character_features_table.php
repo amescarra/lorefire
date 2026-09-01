@@ -21,7 +21,7 @@ return new class extends Migration
             $table->boolean('has_uses')->default(false);
             $table->unsignedTinyInteger('max_uses')->nullable();
             $table->unsignedTinyInteger('uses_remaining')->nullable();
-            $table->string('recharge_on')->nullable(); // short rest, long rest, dawn
+            $table->string('recharge_on')->nullable(); // overnight, dawn, weekly
             $table->timestamps();
         });
     }

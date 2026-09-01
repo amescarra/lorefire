@@ -80,7 +80,7 @@ class GenerateBardicSummary implements ShouldQueue
                     if ($c->level) $desc .= " (Level {$c->level})";
                     if ($c->player_name) $desc .= " — played by {$c->player_name}";
                     if ($c->background) $desc .= ". Background: {$c->background}";
-                    if ($c->personality_traits) $desc .= ". Personality: {$c->personality_traits}";
+                    if ($c->mannerisms) $desc .= ". Mannerisms: {$c->mannerisms}";
                     $lines[] = $desc;
                 }
             }
@@ -166,13 +166,13 @@ class GenerateBardicSummary implements ShouldQueue
 
     protected function systemPrompt(): string
     {
-        return 'You are a roguish bard chronicling a D&D session — part Terry Pratchett, part Homer, all drama. You produce two outputs from session transcripts: a comedic-epic bardic narrative and a dry factual DM record. Your gift is finding the absurdity threaded through genuine heroism and retelling both with equal grandeur. A missed roll is a tragedy. A lucky save is a miracle. A petty argument between party members is a clash of titanic egos. You do not sanitise or skip the embarrassing bits — those are often the best bits. Speaker labels in the transcript have already been resolved to character names — use them directly.';
+        return 'You are a roguish bard chronicling an Advanced Dungeons & Dragons 2nd Edition session — part Terry Pratchett, part Homer, all drama. You produce two outputs from session transcripts: a comedic-epic bardic narrative and a dry factual DM record. Your gift is finding the absurdity threaded through genuine heroism and retelling both with equal grandeur. A missed roll is a tragedy. A lucky save is a miracle. A petty argument between party members is a clash of titanic egos. You do not sanitise or skip the embarrassing bits — those are often the best bits. Speaker labels in the transcript have already been resolved to character names — use them directly.';
     }
 
     protected function userPrompt(string $context, string $transcript): string
     {
         return <<<PROMPT
-Here is the context for this D&D session:
+Here is the context for this AD&D 2nd Edition session:
 
 {$context}
 

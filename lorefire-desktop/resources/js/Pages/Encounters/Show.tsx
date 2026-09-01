@@ -6,6 +6,7 @@ import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
 import { RuneDivider } from '@/Components/RuneDivider'
 import { Campaign, GameSession, Encounter, EncounterTurn } from '@/types'
+import { CombatResolver } from '@/Components/CombatResolver'
 
 interface Props {
   campaign: Campaign
@@ -15,11 +16,14 @@ interface Props {
 
 const ACTION_COLORS: Record<string, string> = {
   attack: 'var(--color-danger)',
+  melee: 'var(--color-danger)',
+  missile: 'var(--color-warning)',
   spell: 'var(--color-arcane)',
   heal: 'var(--color-success)',
   move: 'var(--color-text-dim)',
-  bonus_action: 'var(--color-warning)',
-  reaction: 'var(--color-rune)',
+  parry: 'var(--color-rune)',
+  retreat: 'var(--color-text-dim)',
+  charge: 'var(--color-warning)',
   other: 'var(--color-text-dim)',
 }
 
@@ -112,6 +116,8 @@ export default function Show({ campaign, session, encounter }: Props) {
           <StatCard label="Total Healing" value={totalHealing} color="var(--color-success)" />
           <StatCard label="Critical Hits" value={crits} color="var(--color-rune-bright)" />
         </div>
+
+        <CombatResolver />
 
         {/* ── Combatant list ────────────────────────────────────────── */}
         {uniqueActors.length > 0 && (
