@@ -38,4 +38,26 @@ class LiveSessionController extends Controller
             'campaignContext' => $campaignContext,
         ]);
     }
+
+    /**
+     * Lightweight poll for live character cards while a session is recording.
+     */
+    public function state(Campaign $campaign, GameSession $session): \Illuminate\Http\JsonResponse
+    {
+        $characters = $campaign->characters()
+            ->with(['inventoryItems', 'spells', 'conditions'])
+            ->orderBy('name')
+            ->get();
+
+        if (! empty($session->participant_character_ids)) {
+            $characters = $characters->filter(
+                fn ($c) => in_array($c->id, $session->participant_character_ids)
+            )->values();
+        }
+
+        return response()->json([
+            'characters' => $characters,
+            'sheet_update_cursor' => (int) ($session->sheet_update_cursor ?? 0),
+        ]);
+    }
 }

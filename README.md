@@ -74,7 +74,11 @@ cp .env.example .env
 php artisan key:generate
 
 # Run database migrations
-DB_DATABASE=$(pwd)/database/nativephp.sqlite php artisan migrate
+# NativePHP opens database/nativephp.sqlite. `php artisan migrate` uses
+# database/database.sqlite unless DB_DATABASE is set, so also run:
+php artisan native:migrate --force
+# After this change, `php artisan migrate` (non-testing) also migrates
+# nativephp.sqlite when that file already exists.
 
 # Build frontend assets
 npm run build

@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Support\NativeSqliteMigrator;
 use App\Support\WindowsArm64Php;
+use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,5 +26,7 @@ class AppServiceProvider extends ServiceProvider
         if (PHP_SAPI === 'cli') {
             WindowsArm64Php::applyToEnvironment();
         }
+
+        Event::listen(CommandFinished::class, [NativeSqliteMigrator::class, 'afterMigrateCommand']);
     }
 }

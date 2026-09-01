@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\TranscribeAudio;
+use App\Jobs\TranscribeLiveAudio;
 use App\Models\GameSession;
+use App\Support\LiveTranscript;
+use App\Support\WhisperxRunner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -89,6 +92,8 @@ class ChunkedAudioController extends Controller
         // Create the chunk directory so we can detect stale uploads later if needed
         Storage::disk('local')->makeDirectory("sessions/{$session->id}/chunks/{$uploadId}");
 
+        LiveTranscript::reset($session);
+
         return response()->json(['upload_id' => $uploadId]);
     }
 
@@ -118,6 +123,12 @@ class ChunkedAudioController extends Controller
             "{$padded}.part",
             'local'
         );
+
+        $chunkAbs = Storage::disk('local')->path($chunkPath);
+        $partialAbs = Storage::disk('local')->path(LiveTranscript::partialAudioPath($session));
+        app(WhisperxRunner::class)->appendFile($chunkAbs, $partialAbs);
+
+        TranscribeLiveAudio::dispatch($session, $index);
 
         return response()->json(['stored' => $chunkPath]);
     }

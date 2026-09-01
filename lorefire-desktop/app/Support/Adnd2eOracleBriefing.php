@@ -62,6 +62,7 @@ class Adnd2eOracleBriefing
             '- Five save categories (roll d20 >= target): '.$saves.'.',
             '- Overnight rest only: recover 1 hit point if above '.$death.', rememorize, reset daily class abilities. No short/long-rest cycle.',
             '- Vitality: 0 unconscious; negative is dying; dead at '.$death.'.',
+            '- During a recorded live session, clearly spoken sheet changes (HP, gold, XP, inventory names, named memorized spells) are applied as play happens. You may also confirm a sheet write if asked (for example, mark a named memorized spell cast). Do not invent unknown spells.',
             '',
             '### Magic',
             '- Vancian memorization (counts by spell level). A 1st-level generalist Mage memorizes '.$mageL1.' first-level spell. A specialist (school recorded as kit) memorizes '.$specL1.' at that level (one extra per school level they can already memorize). Priests may gain extra first- and second-level capacity from high Wisdom.',

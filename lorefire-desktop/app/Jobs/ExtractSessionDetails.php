@@ -7,6 +7,8 @@ use App\Models\Character;
 use App\Models\GameSession;
 use App\Models\Npc;
 use App\Models\SpeakerProfile;
+use App\Support\IncrementalSheetExtractor;
+use App\Support\SessionSheetUpdates;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
@@ -24,10 +26,23 @@ class ExtractSessionDetails implements ShouldQueue
     public function handle(): void
     {
         $transcript = $this->loadTranscript();
+        $hadTranscriptFile = (bool) $this->session->transcript_path
+            && Storage::exists($this->session->transcript_path);
 
-        if (empty($transcript)) {
+        if ($transcript === '' && ! $hadTranscriptFile) {
             $this->session->update(['extraction_status' => 'failed']);
             return;
+        }
+
+        $characters = SessionSheetUpdates::participants($this->session);
+        $extracted = ['actions' => [], 'line_hashes' => []];
+        if ($transcript !== '') {
+            foreach (IncrementalSheetExtractor::splitLines($transcript) as $i => $line) {
+                $part = IncrementalSheetExtractor::extract($line, $characters, 'end-'.$i);
+                $extracted['actions'] = array_merge($extracted['actions'], $part['actions']);
+                $extracted['line_hashes'] = array_merge($extracted['line_hashes'], $part['line_hashes']);
+            }
+            SessionSheetUpdates::apply($this->session, $extracted['actions'], $extracted['line_hashes']);
         }
 
         $context  = $this->buildContext();
@@ -41,21 +56,22 @@ class ExtractSessionDetails implements ShouldQueue
             default     => null,
         };
 
-        if (! $raw) {
-            $this->session->update(['extraction_status' => 'failed']);
-            return;
+        if ($raw && $transcript !== '') {
+            $data = $this->parseOutput($raw);
+            if ($data) {
+                $batchHash = IncrementalSheetExtractor::lineHash($transcript);
+                $llmActions = SessionSheetUpdates::actionsFromExtractPayload(
+                    $data['character_updates'] ?? [],
+                    SessionSheetUpdates::participants($this->session),
+                    $batchHash,
+                );
+                $merged = $this->mergeStragglerActions($extracted['actions'], $llmActions);
+                SessionSheetUpdates::apply($this->session, $merged);
+                $this->applyNpcUpdates($data['npcs'] ?? []);
+            } else {
+                Log::warning('ExtractSessionDetails: failed to parse JSON from LLM output', ['raw' => substr($raw, 0, 500)]);
+            }
         }
-
-        $data = $this->parseOutput($raw);
-
-        if (! $data) {
-            Log::warning('ExtractSessionDetails: failed to parse JSON from LLM output', ['raw' => substr($raw, 0, 500)]);
-            $this->session->update(['extraction_status' => 'failed']);
-            return;
-        }
-
-        $this->applyCharacterUpdates($data['character_updates'] ?? []);
-        $this->applyNpcUpdates($data['npcs'] ?? []);
 
         $this->session->update(['extraction_status' => 'done']);
     }
@@ -129,12 +145,24 @@ class ExtractSessionDetails implements ShouldQueue
         $data = json_decode($raw ?? '{}', true);
 
         $speakerMap = $this->buildSpeakerMap();
+        $bag = array_values($this->session->sheet_update_hashes ?? []);
 
-        return collect($data['segments'] ?? [])
-            ->map(function ($s) use ($speakerMap) {
+        $lines = collect($data['segments'] ?? [])
+            ->map(function ($s) use ($speakerMap, &$bag) {
+                $text = trim($s['text'] ?? '');
+                if ($text === '') {
+                    return null;
+                }
+                $key = 'line:'.IncrementalSheetExtractor::lineHash($text);
+                $idx = array_search($key, $bag, true);
+                if ($idx !== false) {
+                    unset($bag[$idx]);
+                    $bag = array_values($bag);
+                    return null;
+                }
+
                 $start   = $this->formatTime((float) ($s['start'] ?? 0));
                 $speaker = $s['speaker'] ?? null;
-                $text    = trim($s['text'] ?? '');
 
                 if ($speaker) {
                     $resolved = $speakerMap[$speaker] ?? $speaker;
@@ -143,7 +171,10 @@ class ExtractSessionDetails implements ShouldQueue
 
                 return "[{$start}] {$text}";
             })
-            ->implode("\n");
+            ->filter()
+            ->values();
+
+        return $lines->implode("\n");
     }
 
     protected function buildSpeakerMap(): array
@@ -187,7 +218,7 @@ class ExtractSessionDetails implements ShouldQueue
 
     protected function systemPrompt(): string
     {
-        return 'You are an expert AD&D 2nd Edition session analyst. Extract structured game-state changes from a session transcript: changes to player character stats (HP, gold, XP, memorized spells cast) and any NPCs who appeared or were mentioned. This table uses THAC0, descending Armor Class, and Vancian memorization — not 5th Edition spell slots, proficiency bonus, or death saves. Be conservative — only update values when the transcript clearly confirms a change. Do not guess or infer from context alone.';
+        return 'You are an expert AD&D 2nd Edition session analyst. Extract structured game-state changes from a session transcript: changes to player character stats (HP, gold, XP, named memorized spells cast or rememorized, inventory names) and any NPCs who appeared or were mentioned. This table uses THAC0, descending Armor Class, and Vancian memorization — not 5th Edition spell slots, proficiency bonus, or death saves. Be conservative — only update values when the transcript clearly confirms a change. Do not guess or infer from context alone. Do not invent Player\'s Handbook spell text. Ignore unknown spell names unless the player clearly added one to the spellbook with a level.';
     }
 
     protected function userPrompt(string $context, string $transcript): string
@@ -206,8 +237,9 @@ Here is the session transcript:
 Analyze the transcript and extract:
 
 1. **character_updates**: Changes to player character stats that clearly happened during this session.
-   - Only include characters that had actual changes (HP damage/healing including scores below 0, gold gained/spent, XP awarded, memorized spells cast).
+   - Only include characters that had actual changes (HP damage/healing including scores below 0, gold gained/spent, XP awarded, named memorized spells cast, inventory names gained or lost, overnight rest).
    - Use the character names exactly as listed in the context.
+   - For spells, name copies only (two Fireballs = two copies). Do not invent spells that are not on the sheet unless the transcript clearly says the character added one.
 
 2. **npcs**: NPCs who appeared, were mentioned, or whose status changed.
    - Include NPCs from the known list if their status/location/attitude changed.
@@ -225,7 +257,11 @@ Respond ONLY with a JSON object wrapped in <extraction> tags, no other text:
       "max_hp": null,
       "gold": null,
       "experience_points": null,
-      "memorization_used": null,
+      "rest": false,
+      "spells_cast": [{"name": "Fireball", "level": 3, "copies": 1}],
+      "spells_memorized": [],
+      "inventory_gained": [],
+      "inventory_lost": [],
       "notes": "optional short note about what happened"
     }
   ],
@@ -246,11 +282,53 @@ Respond ONLY with a JSON object wrapped in <extraction> tags, no other text:
 
 Rules:
 - Use null for any field you are not confident about — do not guess.
-- For character HP: set current_hp to the value AFTER the session ends (or the last known value if unclear).
+- For character HP: set current_hp to the value AFTER the remaining transcript (or the last known value if unclear).
 - For gold/XP: set to the new total, not the delta — unless you cannot determine the total, in which case use null.
+- spells_cast burns that many memorized copies of a named spell already on the sheet.
 - Keep notes to one short sentence max.
 - Only include npcs array entries for NPCs who actually appeared or were referenced in the transcript.
 PROMPT;
+    }
+
+    /**
+     * LLM stragglers must not replay a named spell/HP line the live extractor already applied.
+     *
+     * @param  array<int, array<string, mixed>>  $primary
+     * @param  array<int, array<string, mixed>>  $secondary
+     * @return array<int, array<string, mixed>>
+     */
+    protected function mergeStragglerActions(array $primary, array $secondary): array
+    {
+        $keys = [];
+        foreach ($primary as $action) {
+            $keys[$this->actionMergeKey($action)] = true;
+        }
+
+        $extra = [];
+        foreach ($secondary as $action) {
+            $key = $this->actionMergeKey($action);
+            if (isset($keys[$key])) {
+                continue;
+            }
+            $extra[] = $action;
+            $keys[$key] = true;
+        }
+
+        return $extra;
+    }
+
+    /**
+     * @param  array<string, mixed>  $action
+     */
+    protected function actionMergeKey(array $action): string
+    {
+        $type = (string) ($action['type'] ?? '');
+        $cid = (string) ($action['character_id'] ?? 'party');
+        if (str_starts_with($type, 'spell')) {
+            return $type.':'.$cid.':'.strtolower((string) ($action['spell_name'] ?? ''));
+        }
+
+        return $type.':'.$cid;
     }
 
     // ── Parsing ────────────────────────────────────────────────────────────
@@ -302,36 +380,6 @@ PROMPT;
     }
 
     // ── Applying updates ───────────────────────────────────────────────────
-
-    protected function applyCharacterUpdates(array $updates): void
-    {
-        $campaignId     = $this->session->campaign_id;
-        $participantIds = $this->session->participant_character_ids ?? [];
-
-        $characters = $participantIds
-            ? Character::whereIn('id', $participantIds)->where('campaign_id', $campaignId)->get()
-            : Character::where('campaign_id', $campaignId)->get();
-
-        foreach ($updates as $update) {
-            $name = $update['name'] ?? null;
-            if (! $name) continue;
-
-            $character = $characters->firstWhere('name', $name);
-            if (! $character) continue;
-
-            $fields = [];
-            foreach (['current_hp', 'max_hp', 'gold', 'experience_points', 'memorization_used'] as $field) {
-                if (isset($update[$field]) && $update[$field] !== null) {
-                    $fields[$field] = $update[$field];
-                }
-            }
-
-            if (! empty($fields)) {
-                $character->update($fields);
-                Log::info("ExtractSessionDetails: updated character {$name}", $fields);
-            }
-        }
-    }
 
     protected function applyNpcUpdates(array $npcs): void
     {

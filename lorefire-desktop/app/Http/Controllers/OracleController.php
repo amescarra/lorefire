@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Jobs\AskOracle;
 use App\Models\AppSetting;
 use App\Models\Campaign;
+use App\Models\GameSession;
 use App\Models\OracleReply;
 use App\Support\Adnd2eOracleBriefing;
+use App\Support\SessionSheetUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -36,12 +38,32 @@ class OracleController extends Controller
             'messages.*.role'    => 'required|in:user,assistant',
             'messages.*.content' => 'required|string|max:8000',
             'context'            => 'nullable|array',
+            'session_id'         => 'nullable|integer|exists:game_sessions,id',
         ]);
+
+        $sheetUpdated = false;
+        $sessionId = $request->input('session_id');
+        if ($sessionId) {
+            $session = GameSession::find($sessionId);
+            $lastUser = collect($request->input('messages'))
+                ->reverse()
+                ->first(fn ($m) => ($m['role'] ?? '') === 'user');
+            if ($session && is_array($lastUser) && ! empty($lastUser['content'])) {
+                $sheetUpdated = SessionSheetUpdates::applyFromText(
+                    $session,
+                    (string) $lastUser['content'],
+                    'oracle-'.uniqid('', true)
+                );
+            }
+        }
 
         $provider = AppSetting::get('llm_provider', 'none');
 
         if ($provider === 'none') {
-            return response()->json(['error' => 'No LLM provider configured. Set one in Settings.'], 422);
+            return response()->json([
+                'error' => 'No LLM provider configured. Set one in Settings.',
+                'sheet_updated' => $sheetUpdated,
+            ], 422);
         }
 
         $systemPrompt = $this->buildSystemPrompt($request->input('context', []));
@@ -51,7 +73,10 @@ class OracleController extends Controller
 
         AskOracle::dispatch($reply, $systemPrompt, $messages);
 
-        return response()->json(['reply_id' => $reply->id]);
+        return response()->json([
+            'reply_id' => $reply->id,
+            'sheet_updated' => $sheetUpdated,
+        ]);
     }
 
     /**

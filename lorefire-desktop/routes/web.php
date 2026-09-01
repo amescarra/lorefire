@@ -26,6 +26,7 @@ use App\Http\Controllers\CharacterClassFeaturesController;
 use App\Http\Controllers\CharacterConditionController;
 use App\Http\Controllers\CharacterHpController;
 use App\Http\Controllers\LiveSessionController;
+use App\Http\Controllers\LiveSheetUpdateController;
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -125,6 +126,7 @@ Route::prefix('campaigns/{campaign}')->name('campaigns.')->group(function () {
     Route::resource('npcs', NpcController::class);
     Route::resource('sessions', GameSessionController::class);
     Route::get('sessions/{session}/live', [LiveSessionController::class, 'show'])->name('sessions.live');
+    Route::get('sessions/{session}/live-state', [LiveSessionController::class, 'state'])->name('sessions.live-state');
     Route::post('characters/{character}/rest/overnight', [CharacterRestController::class, 'overnightForCampaign'])
         ->name('characters.rest.overnight');
     Route::patch('characters/{character}/memorization', [CharacterSpellSlotsController::class, 'updateForCampaign'])
@@ -160,6 +162,7 @@ Route::prefix('sessions/{session}')->name('sessions.')->group(function () {
     Route::delete('art-prompts',         [TranscriptionController::class, 'cancelArtPrompts'])->name('art-prompts.cancel');
     Route::post('extract-details',       [TranscriptionController::class, 'extractDetails'])->name('extract-details');
     Route::get('extraction-status',      [TranscriptionController::class, 'extractionStatus'])->name('extraction-status');
+    Route::post('live-sheet-updates',    [LiveSheetUpdateController::class, 'apply'])->name('live-sheet-updates');
     // Speaker profiles (session-scoped — WhisperX labels are per-session)
     Route::post('speakers',                [SpeakerProfileController::class, 'storeForSession'])->name('speakers.store');
     Route::patch('speakers/{speaker}',     [SpeakerProfileController::class, 'update'])->name('speakers.update');

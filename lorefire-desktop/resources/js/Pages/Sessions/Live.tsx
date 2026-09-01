@@ -41,7 +41,12 @@ function fmtTime(s: number): string {
 
 interface OracleMessage { role: 'user' | 'assistant'; content: string }
 
-function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; hasLlm: boolean }) {
+function OraclePanel({ campaignContext, hasLlm, sessionId, onSheetUpdated }: {
+  campaignContext: Campaign
+  hasLlm: boolean
+  sessionId: number
+  onSheetUpdated: () => void
+}) {
   const [messages, setMessages] = useState<OracleMessage[]>([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -74,9 +79,14 @@ function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; h
       const res = await fetch('/oracle/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
-        body: JSON.stringify({ messages: next, context: { campaigns: [campaignContext] } }),
+        body: JSON.stringify({
+          messages: next,
+          context: { campaigns: [campaignContext] },
+          session_id: sessionId,
+        }),
       })
       const data = await res.json().catch(() => ({}))
+      if (data.sheet_updated) onSheetUpdated()
       if (!res.ok || data.error) { setError(data.error ?? 'Failed to reach the Oracle.'); setLoading(false); return }
       const replyId = data.reply_id as number
       pollRef.current = setInterval(async () => {
@@ -122,6 +132,7 @@ function OraclePanel({ campaignContext, hasLlm }: { campaignContext: Campaign; h
               'How does THAC0 vs descending AC work?',
               'Summarize the current session.',
               'How does spell memorization work?',
+              'Mark Fireball as cast',
               'What happens when a character drops below 0 HP?',
             ].map(p => (
               <button
@@ -214,6 +225,12 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
 
   // Local mirror of class features (for lay on hands etc.)
   const [classFeatures, setClassFeatures] = useState<Record<string, unknown>>(character.class_features ?? {})
+
+  useEffect(() => {
+    setCurrentHp(character.current_hp)
+    setSlotsUsed(character.memorization_used ?? {})
+    setClassFeatures(character.class_features ?? {})
+  }, [character.current_hp, character.memorization_used, character.class_features, character.spells])
 
   const hasSpellSlots = !!(character.memorization && Object.keys(character.memorization).length > 0)
 
@@ -336,6 +353,9 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
             {vitalityState(currentHp) !== 'ok' && (
               <span className="text-[10px] uppercase" style={{ color: 'var(--color-danger)' }}>{vitalityState(currentHp)}</span>
             )}
+            <span className="text-[10px] font-mono ml-2" style={{ color: 'var(--color-text-dim)' }}>
+              {character.gold ?? 0} gp
+            </span>
           </div>
           <div className="flex gap-1">
             <button
@@ -688,8 +708,29 @@ function SessionPanel({ campaign, session }: { campaign: Campaign; session: Game
 
 export default function Live({ campaign, session, characters, hasLlm, campaignContext }: Props) {
   const [tab, setTab] = useState<LiveTab>('characters')
+  const [liveCharacters, setLiveCharacters] = useState(characters)
   const { isRecording, activeSessionId } = useRecording()
   const isThisSession = activeSessionId === session.id
+
+  useEffect(() => {
+    setLiveCharacters(characters)
+  }, [characters])
+
+  const refreshCharacters = () => {
+    fetch(`/campaigns/${campaign.id}/sessions/${session.id}/live-state`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.characters)) setLiveCharacters(data.characters)
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!isThisSession || !isRecording) return
+    refreshCharacters()
+    const id = setInterval(refreshCharacters, 2500)
+    return () => clearInterval(id)
+  }, [isThisSession, isRecording, campaign.id, session.id])
 
   return (
     <AppLayout breadcrumbs={[
@@ -716,7 +757,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
           {/* Tab switcher */}
           <div className="flex gap-1 ml-auto">
             {([
-              { key: 'characters', label: `Characters (${characters.length})` },
+              { key: 'characters', label: `Characters (${liveCharacters.length})` },
               { key: 'oracle',     label: 'Oracle' },
               { key: 'session',    label: 'Session' },
             ] as const).map(({ key, label }) => (
@@ -737,7 +778,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
 
         {/* ── Characters grid ───────────────────────────────────────────── */}
         {tab === 'characters' && (
-          characters.length === 0 ? (
+          liveCharacters.length === 0 ? (
             <div className="flex items-center justify-center flex-1">
               <p className="text-sm" style={{ color: 'var(--color-text-dim)' }}>
                 No characters assigned to this session.{' '}
@@ -755,7 +796,7 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
                 alignItems: 'start',
               }}
             >
-              {characters.map(char => (
+              {liveCharacters.map(char => (
                 <CharacterCard key={char.id} character={char} campaignId={campaign.id} />
               ))}
             </div>
@@ -765,7 +806,12 @@ export default function Live({ campaign, session, characters, hasLlm, campaignCo
         {/* ── Oracle ────────────────────────────────────────────────────── */}
         {tab === 'oracle' && (
           <div className="runic-card flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 12rem)' }}>
-            <OraclePanel campaignContext={campaignContext} hasLlm={hasLlm} />
+            <OraclePanel
+              campaignContext={campaignContext}
+              hasLlm={hasLlm}
+              sessionId={session.id}
+              onSheetUpdated={refreshCharacters}
+            />
           </div>
         )}
 
