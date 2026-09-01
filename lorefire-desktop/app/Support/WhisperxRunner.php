@@ -32,24 +32,20 @@ class WhisperxRunner
             mkdir($dir, 0755, true);
         }
 
-        $model = AppSetting::get('whisperx_model', 'base');
-        $language = AppSetting::get('whisperx_language', 'en');
+        $model = \App\Support\WhisperxLanguages::coerceModel(
+            (string) AppSetting::get('whisperx_model', 'base')
+        );
         $hfToken = AppSetting::get('huggingface_token', '');
 
-        $cmd = [
+        $cmd = \App\Support\WhisperxLanguages::command(
             $python,
             $script,
-            '--audio', $audioPath,
-            '--output', $outputJson,
-            '--model', $model,
-            '--language', $language,
-        ];
-
-        if ($diarize && $hfToken) {
-            $cmd[] = '--diarize';
-            $cmd[] = '--hf-token';
-            $cmd[] = $hfToken;
-        }
+            $audioPath,
+            $outputJson,
+            $diarize,
+            (string) $hfToken,
+            $model,
+        );
 
         $process = new Process($cmd);
         $process->setTimeout(600);
@@ -75,7 +71,7 @@ class WhisperxRunner
 
         return [
             'segments' => is_array($decoded['segments'] ?? null) ? $decoded['segments'] : [],
-            'language' => (string) ($decoded['language'] ?? $language),
+            'language' => (string) ($decoded['language'] ?? \App\Support\WhisperxLanguages::csv()),
         ];
     }
 

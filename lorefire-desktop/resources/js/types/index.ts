@@ -263,6 +263,7 @@ export interface AppSettings {
   zai_plan: string | null
   zai_base_url: string | null
   whisperx_model: string | null
+  whisperx_languages: string | null
   whisperx_language: string | null
   huggingface_token: string | null
   default_art_style: string | null

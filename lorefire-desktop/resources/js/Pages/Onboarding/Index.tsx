@@ -139,6 +139,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
       zai_api_key: zaiKey,
       zai_model: zaiModel,
       whisperx_model: whisperModel,
+      whisperx_languages: 'en,es',
     }, {
       preserveScroll: true,
       onFinish: () => setSavingLlm(false),
@@ -226,7 +227,7 @@ export default function Onboarding({ python_status, python_error }: Props) {
                 label="Whisper Model Size"
                 value={whisperModel}
                 onChange={e => setWhisperModel(e.target.value)}
-                hint="Larger models are more accurate but slower. 'base' is recommended for most machines."
+                hint="Multilingual only (English and Spanish). English-only *.en checkpoints are not used."
               >
                 <option value="tiny">tiny — fastest, lowest accuracy</option>
                 <option value="base">base — good balance (recommended)</option>

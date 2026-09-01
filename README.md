@@ -105,8 +105,8 @@ On first launch, the app automatically installs the Python venv in the backgroun
 
 | Setting | Description |
 |---|---|
-| **Model size** | `tiny` → `large-v3`. `base` is recommended for most Macs. Larger = more accurate but slower. |
-| **Language** | Default `English`. Auto-detect and 9 other languages supported. |
+| **Model size** | `tiny` → `large-v3` (multilingual). `base` is recommended. English-only `*.en` names are coerced to the multilingual twin. |
+| **Languages** | Allowlist default **English + Spanish**. Detection is per spoken stretch and clamped to that list — mixed sessions keep both; a false French detect does not stay French. |
 | **HuggingFace Token** | Required for **speaker diarization** (identifying who said what). Free at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). You must also accept **both** pyannote model licenses while logged into the same account: [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0). |
 
 > **Large-v3 note:** Needs 8 GB+ RAM and will be noticeably slow on CPU. On Apple Silicon with enough unified memory it works well.

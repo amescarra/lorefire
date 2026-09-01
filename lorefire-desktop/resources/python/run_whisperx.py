@@ -7,7 +7,7 @@ Usage:
     --audio /path/to/audio.webm \
     --output /path/to/output.json \
     --model base \
-    --language en \
+    --languages en,es \
     --diarize \
     --hf-token <HuggingFace token for diarization>
 
@@ -18,6 +18,7 @@ Output JSON schema:
       "start": 0.0,
       "end": 2.4,
       "text": "Hello everyone.",
+      "language": "en",
       "speaker": "SPEAKER_00"   # only present when --diarize
     },
     ...
@@ -37,6 +38,16 @@ import argparse
 import json
 import os
 import sys
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from whisperx_languages import (  # noqa: E402
+    clamp_detected_language,
+    coerce_multilingual_model,
+    parse_languages,
+)
 
 # Set cache directories to proper OS-native paths before any ML library imports.
 # On Windows the default expansion uses mixed separators which breaks cache lookups.
@@ -107,12 +118,192 @@ def detect_device() -> tuple[str, str, str]:
     return "cpu", "cpu", "int8"
 
 
+SAMPLE_RATE = 16000
+
+
+def vad_windows(pipeline, audio) -> list[tuple[float, float]]:
+    """Speech windows in seconds. Falls back to 30s hops if VAD internals change."""
+    duration = len(audio) / float(SAMPLE_RATE)
+    try:
+        import torch
+        from whisperx.vad import merge_chunks
+
+        wav = torch.from_numpy(audio).float()
+        if wav.ndim == 1:
+            wav = wav.unsqueeze(0)
+        raw = pipeline.vad_model({"waveform": wav, "sample_rate": SAMPLE_RATE})
+        merged = merge_chunks(raw, 30, onset=0.5, offset=0.363)
+        windows = []
+        for item in merged:
+            start = float(item.get("start", 0))
+            end = float(item.get("end", start))
+            if end > start:
+                windows.append((start, end))
+        if windows:
+            return windows
+    except Exception as exc:
+        print(f"[whisperx] VAD split failed ({exc}); using 30s hops.", file=sys.stderr)
+
+    hop = 30.0
+    windows = []
+    t = 0.0
+    while t < duration:
+        windows.append((t, min(duration, t + hop)))
+        t += hop
+    return windows or [(0.0, max(duration, 0.01))]
+
+
+def detect_language_distribution(pipeline, audio_chunk) -> tuple[str | None, dict[str, float]]:
+    """Top language plus a lang→prob map for allowlist clamping."""
+    try:
+        from whisperx.audio import N_SAMPLES, log_mel_spectrogram
+    except Exception:
+        N_SAMPLES = 30 * SAMPLE_RATE
+        log_mel_spectrogram = None
+
+    try:
+        feat_kwargs = getattr(pipeline.model, "feat_kwargs", None) or {}
+        n_mels = feat_kwargs.get("feature_size") or 80
+        if log_mel_spectrogram is None:
+            raise RuntimeError("log_mel_spectrogram unavailable")
+        padding = 0 if audio_chunk.shape[0] >= N_SAMPLES else N_SAMPLES - audio_chunk.shape[0]
+        segment = log_mel_spectrogram(
+            audio_chunk[:N_SAMPLES],
+            n_mels=n_mels,
+            padding=padding,
+        )
+        encoder_output = pipeline.model.encode(segment)
+        results = pipeline.model.model.detect_language(encoder_output)
+        ranked = results[0]
+        probs: dict[str, float] = {}
+        top = None
+        top_p = -1.0
+        for token, p in ranked:
+            lang = token[2:-2] if isinstance(token, str) and len(token) >= 4 else str(token)
+            probs[lang] = float(p)
+            if float(p) > top_p:
+                top = lang
+                top_p = float(p)
+        return top, probs
+    except Exception:
+        try:
+            lang = pipeline.detect_language(audio_chunk)
+            if lang:
+                return lang, {str(lang): 1.0}
+            return None, {}
+        except Exception as exc:
+            print(f"[whisperx] language detect failed ({exc})", file=sys.stderr)
+            return None, {}
+
+
+def transcribe_allowlisted(pipeline, audio, allowlist: list[str], batch_size: int) -> list[dict]:
+    """Detect per VAD window, clamp to allowlist, transcribe (never translate)."""
+    segments: list[dict] = []
+    previous = allowlist[0]
+    windows = vad_windows(pipeline, audio)
+    single = len(allowlist) == 1
+
+    for start_s, end_s in windows:
+        start_i = max(0, int(start_s * SAMPLE_RATE))
+        end_i = min(len(audio), int(end_s * SAMPLE_RATE))
+        chunk = audio[start_i:end_i]
+        if chunk.shape[0] < int(0.15 * SAMPLE_RATE):
+            continue
+
+        if single:
+            lang = allowlist[0]
+            detected = lang
+        else:
+            detected, probs = detect_language_distribution(pipeline, chunk)
+            lang = clamp_detected_language(detected, probs, allowlist, previous)
+            print(
+                f"[whisperx] Detected language: {detected or 'unknown'} → {lang}",
+                file=sys.stderr,
+            )
+        previous = lang
+
+        try:
+            result = pipeline.transcribe(
+                chunk,
+                batch_size=batch_size,
+                language=lang,
+                task="transcribe",
+            )
+        except TypeError:
+            result = pipeline.transcribe(chunk, batch_size=batch_size, language=lang)
+
+        for seg in result.get("segments", []):
+            text = (seg.get("text") or "").strip()
+            if not text:
+                continue
+            segments.append({
+                "start": start_s + float(seg.get("start", 0)),
+                "end": start_s + float(seg.get("end", 0)),
+                "text": text,
+                "language": lang,
+            })
+
+    return segments
+
+
+def align_by_language(whisperx, segments: list[dict], audio, torch_device: str) -> list[dict]:
+    """Align each language group with its wav2vec model; keep raw text on failure."""
+    if not segments:
+        return segments
+
+    aligned: list[dict] = []
+    cache: dict[str, tuple] = {}
+    i = 0
+    while i < len(segments):
+        lang = segments[i].get("language") or "en"
+        j = i + 1
+        while j < len(segments) and (segments[j].get("language") or "en") == lang:
+            j += 1
+        group = segments[i:j]
+        try:
+            if lang not in cache:
+                print(f"[whisperx] Aligning ({lang})…", file=sys.stderr)
+                cache[lang] = whisperx.load_align_model(language_code=lang, device=torch_device)
+            align_model, metadata = cache[lang]
+            result = whisperx.align(
+                [{k: s[k] for k in ("start", "end", "text") if k in s} for s in group],
+                align_model,
+                metadata,
+                audio,
+                torch_device,
+                return_char_alignments=False,
+            )
+            out_segs = result.get("segments", group)
+            for src, dst in zip(group, out_segs):
+                merged = dict(src)
+                merged.update({
+                    "start": dst.get("start", src["start"]),
+                    "end": dst.get("end", src["end"]),
+                    "text": (dst.get("text") or src["text"]).strip(),
+                })
+                if "words" in dst:
+                    merged["words"] = dst["words"]
+                aligned.append(merged)
+            print(f"[whisperx] Alignment complete ({lang}).", file=sys.stderr)
+        except Exception as exc:
+            print(
+                f"[whisperx] WARNING: Alignment failed for {lang} ({exc}), using raw segments.",
+                file=sys.stderr,
+            )
+            aligned.extend(group)
+        i = j
+
+    return aligned
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="WhisperX transcription runner")
     parser.add_argument("--audio",    required=True,  help="Path to input audio file")
     parser.add_argument("--output",   required=True,  help="Path to write JSON output")
-    parser.add_argument("--model",    default="base",  help="Whisper model size (tiny/base/small/medium/large-v2/large-v3)")
-    parser.add_argument("--language", default=None,   help="Language code (e.g. 'en'). Auto-detect if omitted.")
+    parser.add_argument("--model",    default="base",  help="Whisper model size (tiny/base/small/medium/large-v2/large-v3). *.en names are coerced.")
+    parser.add_argument("--languages", default="en,es", dest="languages",
+                        help="Comma-separated allowlist (default en,es). Do not pass a single --language when more than one is allowed.")
+    parser.add_argument("--language", default=None,   help=argparse.SUPPRESS)  # legacy; folded into allowlist
     parser.add_argument("--diarize",  action="store_true", help="Enable speaker diarization")
     parser.add_argument("--hf-token", default=None,   dest="hf_token",
                         help="HuggingFace token (required for diarization)")
@@ -153,6 +344,18 @@ def main() -> int:
 
     print(f"[whisperx] Using ct2_device={ct2_device} torch_device={torch_device} compute_type={compute_type}", file=sys.stderr)
 
+    allowlist = parse_languages(args.languages)
+    languages_explicit = any(
+        a == "--languages" or a.startswith("--languages=") for a in sys.argv[1:]
+    )
+    if args.language and not languages_explicit:
+        allowlist = parse_languages(args.language)
+    model_name = coerce_multilingual_model(args.model)
+    if model_name != args.model:
+        print(f"[whisperx] Coerced English-only model '{args.model}' → '{model_name}'", file=sys.stderr)
+
+    load_language = allowlist[0] if len(allowlist) == 1 else None
+
     # ── Import whisperx (lazy, so error messages are clear) ──────────
     try:
         import whisperx
@@ -161,15 +364,16 @@ def main() -> int:
         return 2
 
     # ── Load model ───────────────────────────────────────────────────
-    print(f"[whisperx] Loading model '{args.model}' on {ct2_device}…", file=sys.stderr)
+    print(f"[whisperx] Loading model '{model_name}' on {ct2_device}…", file=sys.stderr)
     try:
-        model = whisperx.load_model(
-            args.model,
+        load_kwargs = dict(
             device=ct2_device,
             compute_type=compute_type,
-            language=args.language,
             vad_method=args.vad_method,
         )
+        if load_language:
+            load_kwargs["language"] = load_language
+        model = whisperx.load_model(model_name, **load_kwargs)
     except Exception as exc:
         print(f"ERROR: Failed to load model: {exc}", file=sys.stderr)
         return 2
@@ -182,36 +386,22 @@ def main() -> int:
         print(f"ERROR: Failed to load audio: {exc}", file=sys.stderr)
         return 1
 
-    # ── Transcribe ───────────────────────────────────────────────────
+    # ── Transcribe (per-window detect, clamped to allowlist) ─────────
     print("[whisperx] Transcribing…", file=sys.stderr)
     try:
-        result = model.transcribe(audio, batch_size=args.batch_size)
+        segments = transcribe_allowlisted(model, audio, allowlist, args.batch_size)
     except Exception as exc:
         print(f"ERROR: Transcription failed: {exc}", file=sys.stderr)
         return 2
 
-    detected_language = result.get("language", args.language or "unknown")
+    langs_used = sorted({s.get("language") for s in segments if s.get("language")})
+    detected_language = ",".join(langs_used) if langs_used else ",".join(allowlist)
     print(f"[whisperx] Detected language: {detected_language}", file=sys.stderr)
 
-    # ── Align ────────────────────────────────────────────────────────
-    try:
-        print("[whisperx] Aligning…", file=sys.stderr)
-        align_model, metadata = whisperx.load_align_model(
-            language_code=detected_language,
-            device=torch_device,
-        )
-        result = whisperx.align(
-            result["segments"],
-            align_model,
-            metadata,
-            audio,
-            torch_device,
-            return_char_alignments=False,
-        )
-        print("[whisperx] Alignment complete.", file=sys.stderr)
-    except Exception as exc:
-        # Alignment is best-effort; continue with raw segments
-        print(f"[whisperx] WARNING: Alignment failed ({exc}), using raw segments.", file=sys.stderr)
+    # ── Align per language ───────────────────────────────────────────
+    segments = align_by_language(whisperx, segments, audio, torch_device)
+
+    result = {"segments": segments}
 
     # ── Diarize ──────────────────────────────────────────────────────
     if args.diarize:
@@ -253,6 +443,8 @@ def main() -> int:
             "end":   round(seg.get("end",   0), 3),
             "text":  seg.get("text", "").strip(),
         }
+        if seg.get("language"):
+            entry["language"] = seg["language"]
         if "speaker" in seg:
             entry["speaker"] = seg["speaker"]
         segments_out.append(entry)

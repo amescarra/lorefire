@@ -9,11 +9,12 @@ import { AppSettings, PageProps } from '@/types'
 
 interface Props {
   settings: AppSettings
+  whisperx_languages?: string
 }
 
 type PythonStatus = 'not_started' | 'running' | 'ready' | 'failed'
 
-export default function Index({ settings }: Props) {
+export default function Index({ settings, whisperx_languages }: Props) {
   const { python_setup } = usePage<PageProps>().props
   const [pythonStatus, setPythonStatus] = useState<PythonStatus>(python_setup?.status ?? 'not_started')
   const [pythonError, setPythonError] = useState<string | null>(python_setup?.error ?? null)
@@ -30,7 +31,7 @@ export default function Index({ settings }: Props) {
     zai_model:         settings.zai_model ?? 'glm-4.6',
     zai_plan:          settings.zai_plan ?? 'coding',
     whisperx_model:    settings.whisperx_model ?? 'base',
-    whisperx_language: settings.whisperx_language ?? 'en',
+    whisperx_languages: whisperx_languages ?? settings.whisperx_languages ?? 'en,es',
     huggingface_token: settings.huggingface_token ?? '',
     default_art_style:    settings.default_art_style ?? 'lifelike',
     image_gen_provider:   settings.image_gen_provider ?? 'none',
@@ -119,31 +120,56 @@ export default function Index({ settings }: Props) {
             label="WhisperX Model"
             value={data.whisperx_model}
             onChange={e => setData('whisperx_model', e.target.value)}
-            hint="Larger models are more accurate but slower. 'base' is a good default."
+            hint="Multilingual checkpoints only (English and Spanish). English-only *.en names are rejected."
           >
             <option value="tiny">Tiny — Fastest, lowest accuracy</option>
             <option value="base">Base — Balanced (recommended)</option>
             <option value="small">Small</option>
             <option value="medium">Medium</option>
+            <option value="large-v2">Large v2</option>
             <option value="large-v3">Large v3 — Slowest, highest accuracy</option>
           </Select>
 
-          <Select
-            label="Language"
-            value={data.whisperx_language}
-            onChange={e => setData('whisperx_language', e.target.value)}
-          >
-            <option value="en">English</option>
-            <option value="auto">Auto-detect</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="it">Italian</option>
-            <option value="pt">Portuguese</option>
-            <option value="nl">Dutch</option>
-            <option value="pl">Polish</option>
-            <option value="ja">Japanese</option>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs font-heading tracking-wide" style={{ color: 'var(--color-text-dim)' }}>
+              Languages at the table
+            </p>
+            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--color-text-dim)' }}>
+              Detect per spoken stretch and keep only these. Mixed English/Spanish stays both; a false French detect is clamped to English or Spanish. Never uses an English-only model.
+            </p>
+            <div className="flex gap-2">
+              {([
+                { value: 'en', label: 'English' },
+                { value: 'es', label: 'Spanish' },
+              ] as const).map(opt => {
+                const selected = data.whisperx_languages.split(',').includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      const current = data.whisperx_languages.split(',').filter(Boolean)
+                      const next = selected
+                        ? current.filter(c => c !== opt.value)
+                        : [...current, opt.value]
+                      setData('whisperx_languages', (next.length ? next : ['en', 'es']).join(','))
+                    }}
+                    className="flex-1 text-left px-3 py-2 rounded border text-xs transition-all"
+                    style={{
+                      borderColor: selected ? 'var(--color-rune)' : 'var(--color-border)',
+                      background:  selected ? 'var(--color-rune-glow)' : 'var(--color-deep)',
+                      color:       selected ? 'var(--color-rune-bright)' : 'var(--color-text-dim)',
+                    }}
+                  >
+                    <span className="font-heading tracking-wide block">{opt.label}</span>
+                    <span className="text-[10px] leading-snug block mt-0.5" style={{ color: 'var(--color-text-dim)' }}>
+                      {opt.value}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           <Input
             label="HuggingFace Token"
