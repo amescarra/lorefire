@@ -19,6 +19,12 @@ class LiveSheetUpdateTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::disk('local')->deleteDirectory('sessions');
+    }
+
     /**
      * @return array{0: Campaign, 1: \App\Models\GameSession, 2: Character}
      */
