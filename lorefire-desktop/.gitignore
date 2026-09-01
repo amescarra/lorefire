@@ -6,6 +6,10 @@
 /database/nativephp.sqlite
 /database/nativephp.sqlite-shm
 /database/nativephp.sqlite-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/storage/app/import
 /storage/app/audio
 /storage/app/portraits
 /storage/app/party-portraits

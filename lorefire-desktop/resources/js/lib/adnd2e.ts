@@ -210,7 +210,7 @@ export const CONDITIONS_2E = [
 
 export const DEATH_THRESHOLD = -10
 
-/** Suor Nor house dual: original class must be this level before a new class may begin. */
+/** House dual-class: original class must be this level before a new class may begin. */
 export const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6
 
 /** This table switches at 6th; resume is 6 − 1 = 5th in the new class. */
@@ -489,7 +489,7 @@ export function displayLevel(entries: ClassEntry[], path: ClassPath = 'single'):
   return Math.max(...entries.map(e => e.level))
 }
 
-/** Suor Nor house dual: begin a new class only after the original is 6th. */
+/** House dual-class: begin a new class only after the original is 6th. */
 export function canBeginNewClass(originalLevel: number): boolean {
   return originalLevel >= HOUSE_DUAL_MIN_ORIGINAL_LEVEL
 }

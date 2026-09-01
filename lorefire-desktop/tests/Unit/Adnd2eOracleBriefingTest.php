@@ -25,7 +25,7 @@ class Adnd2eOracleBriefingTest extends TestCase
         $this->assertStringContainsString('PSP totals and typed power names are sheet fields', $prompt);
         $this->assertStringContainsString('Do not invent 5th Edition psionics', $prompt);
         $this->assertStringContainsString('Do not treat Psionicist as a kit', $prompt);
-        $this->assertStringContainsString('Suor Nor house switch', $prompt);
+        $this->assertStringContainsString('house switch', $prompt);
         $this->assertStringContainsString('Begin a new class at 6th in the original', $prompt);
         $this->assertStringContainsString('when the new class is 5th', $prompt);
         $this->assertStringNotContainsString('typically human', $prompt);
@@ -41,7 +41,7 @@ class Adnd2eOracleBriefingTest extends TestCase
                 'name' => 'Moonshae Run',
                 'description' => 'A coastal chronicle.',
                 'characters' => [[
-                    'name' => 'Ailduin',
+                    'name' => 'Aelindra',
                     'race' => 'Elf',
                     'class' => 'Fighter/Mage',
                     'level' => 1,
@@ -59,7 +59,7 @@ class Adnd2eOracleBriefingTest extends TestCase
         $this->assertStringContainsString('Lorefire 2E procedures', $prompt);
         $this->assertStringContainsString('## Campaign Data', $prompt);
         $this->assertStringContainsString('Moonshae Run', $prompt);
-        $this->assertStringContainsString('Ailduin', $prompt);
+        $this->assertStringContainsString('Aelindra', $prompt);
         $this->assertStringContainsString('kit: Bladesinger', $prompt);
         $this->assertStringContainsString('[multi]', $prompt);
         $this->assertStringContainsString('THAC0: 20', $prompt);
@@ -87,15 +87,15 @@ class Adnd2eOracleBriefingTest extends TestCase
     {
         $prompt = Adnd2eOracleBriefing::systemPrompt([
             'campaigns' => [[
-                'name' => 'Suor Nor',
+                'name' => 'Moonshae Run',
                 'description' => 'A coastal chronicle.',
                 'notes' => 'Master doc: the party fled the fighter house after the oath-breaking.',
                 'characters' => [[
-                    'name' => 'Ailduin',
+                    'name' => 'Aelindra',
                     'race' => 'Elf',
                     'class' => 'Fighter/Mage',
                     'level' => 1,
-                    'backstory' => 'Ailduin was born in the Suor Nor fighter house and left after the trial.',
+                    'backstory' => 'Aelindra was born in the coastal fighter house and left after the trial.',
                     'current_hp' => 6,
                     'max_hp' => 6,
                     'armor_class' => 5,
@@ -103,7 +103,7 @@ class Adnd2eOracleBriefingTest extends TestCase
                 ]],
                 'game_sessions' => [[
                     'session_number' => 1,
-                    'title' => 'Suor Nor fighter house rules',
+                    'title' => 'Fighter house rules',
                     'session_notes' => 'House rules for the fighter school.',
                 ]],
             ]],
@@ -114,8 +114,8 @@ class Adnd2eOracleBriefingTest extends TestCase
         $this->assertStringContainsString('**Campaign notes:**', $prompt);
         $this->assertStringContainsString('Master doc: the party fled the fighter house after the oath-breaking.', $prompt);
         $this->assertStringContainsString('**Backstory:**', $prompt);
-        $this->assertStringContainsString('Ailduin was born in the Suor Nor fighter house and left after the trial.', $prompt);
-        $this->assertStringContainsString('Suor Nor fighter house rules', $prompt);
+        $this->assertStringContainsString('Aelindra was born in the coastal fighter house and left after the trial.', $prompt);
+        $this->assertStringContainsString('Fighter house rules', $prompt);
         $this->assertStringContainsString('House rules for the fighter school.', $prompt);
         $this->assertStringNotContainsString('(truncated)', $prompt);
         $this->assertStringNotContainsStringIgnoringCase('spell slots', $prompt);
@@ -150,10 +150,10 @@ class Adnd2eOracleBriefingTest extends TestCase
 
         $prompt = Adnd2eOracleBriefing::systemPrompt([
             'campaigns' => [[
-                'name' => 'Suor Nor',
+                'name' => 'Moonshae Run',
                 'notes' => $notes,
                 'characters' => [[
-                    'name' => 'Ailduin',
+                    'name' => 'Aelindra',
                     'backstory' => $backstory,
                 ]],
             ]],

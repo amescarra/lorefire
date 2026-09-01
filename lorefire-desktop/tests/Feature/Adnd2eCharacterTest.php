@@ -206,7 +206,7 @@ class Adnd2eCharacterTest extends TestCase
         $campaign = Campaign::factory()->create();
 
         $this->post(route('campaigns.characters.store', $campaign), [
-            'name' => 'Logain',
+            'name' => 'Aldric',
             'race' => 'Human',
             'class' => 'Fighter',
             'class_path' => 'multi',
@@ -227,7 +227,7 @@ class Adnd2eCharacterTest extends TestCase
             'psionic_powers' => ['Sight', 'Nudge'],
         ])->assertRedirect();
 
-        $character = Character::query()->where('name', 'Logain')->firstOrFail();
+        $character = Character::query()->where('name', 'Aldric')->firstOrFail();
         $this->assertSame('multi', $character->class_path);
         $this->assertSame('Fighter/Psionicist', $character->class);
         $this->assertSame([
@@ -241,7 +241,7 @@ class Adnd2eCharacterTest extends TestCase
         $this->assertSame(['Sight', 'Nudge'], $character->psionic_powers);
 
         $this->post(route('campaigns.characters.store', $campaign), [
-            'name' => 'Logain Dual',
+            'name' => 'Aldric Dual',
             'race' => 'Human',
             'class' => 'Psionicist',
             'class_path' => 'dual',
@@ -262,7 +262,7 @@ class Adnd2eCharacterTest extends TestCase
             'psionic_powers' => ['Sight', 'Nudge'],
         ])->assertRedirect();
 
-        $dual = Character::query()->where('name', 'Logain Dual')->firstOrFail();
+        $dual = Character::query()->where('name', 'Aldric Dual')->firstOrFail();
         $this->assertSame('dual', $dual->class_path);
         $this->assertSame('Psionicist → Fighter', $dual->class);
         $this->assertSame(10, $dual->level);

@@ -72,7 +72,7 @@ class CharacterController extends Controller
         $data = $this->finalizeClassEntries(
             $this->normalizePsionicSheet($request->validate($this->characterUpdateRules()))
         );
-        $this->assertSuorNorDualSwitch($data, $character);
+        $this->assertHouseDualSwitch($data, $character);
 
         if ($request->hasFile('portrait')) {
             if ($character->portrait_path) {

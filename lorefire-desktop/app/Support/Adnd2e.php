@@ -36,7 +36,7 @@ class Adnd2e
         'Psionicist',
     ];
 
-    /** Suor Nor house dual: original class must be this level before a new class may begin. */
+    /** House dual-class: original class must be this level before a new class may begin. */
     public const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6;
 
     /**
@@ -358,7 +358,7 @@ class Adnd2e
     }
 
     /**
-     * Suor Nor house dual-class (not PHB human-only dual-class).
+     * House dual-class (not PHB human-only dual-class).
      * A character may begin a new class only after the original is at least 6th.
      */
     public static function canBeginNewClass(int $originalLevel): bool

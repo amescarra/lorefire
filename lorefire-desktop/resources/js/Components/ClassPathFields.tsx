@@ -45,7 +45,7 @@ export function ClassPathFields({ path, entries, onPath, onEntries }: Props) {
       )}
       {path === 'dual' && (
         <p className="text-[10px] text-[var(--color-text-dim)]">
-          Suor Nor house rule: begin a new class at 6th in the original; switch back when the new class is 5th. Not human-only; not PHB “must exceed original.” Original class first, new class second.
+          House dual-class: begin a new class at 6th in the original; switch back when the new class is 5th. Not human-only; not PHB “must exceed original.” Original class first, new class second.
         </p>
       )}
       {path === 'dual' && rows[0] && !canBeginNewClass(Number(rows[0].level) || 0) && (

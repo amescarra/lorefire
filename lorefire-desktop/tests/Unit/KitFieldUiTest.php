@@ -106,12 +106,12 @@ class KitFieldUiTest extends TestCase
         $this->assertStringNotContainsString('power score', strtolower($sheet));
     }
 
-    public function test_class_path_fields_list_psionicist_and_suor_nor_dual_hint(): void
+    public function test_class_path_fields_list_psionicist_and_house_dual_hint(): void
     {
         $tsx = file_get_contents(dirname(__DIR__, 2).'/resources/js/Components/ClassPathFields.tsx');
         $this->assertIsString($tsx);
         $this->assertStringContainsString('CLASSES.map', $tsx);
-        $this->assertStringContainsString('Suor Nor house rule', $tsx);
+        $this->assertStringContainsString('House dual-class', $tsx);
         $this->assertStringContainsString('when the new class is 5th', $tsx);
         $this->assertStringNotContainsString('typically human', $tsx);
 

@@ -85,7 +85,7 @@ trait ValidatesAdnd2eCharacter
     protected function applyEditionDefaults(array $data, ?Character $existing = null): array
     {
         $data = $this->finalizeClassEntries($data);
-        $this->assertSuorNorDualSwitch($data, $existing);
+        $this->assertHouseDualSwitch($data, $existing);
 
         $defaults = Adnd2e::defaultsForEntries(
             $data['class_levels'],
@@ -139,7 +139,7 @@ trait ValidatesAdnd2eCharacter
      *
      * @param  array<string, mixed>  $data
      */
-    protected function assertSuorNorDualSwitch(array $data, ?Character $existing = null): void
+    protected function assertHouseDualSwitch(array $data, ?Character $existing = null): void
     {
         $path = (string) ($data['class_path'] ?? 'single');
         $entries = $data['class_levels'] ?? [];
@@ -162,7 +162,7 @@ trait ValidatesAdnd2eCharacter
         }
 
         throw ValidationException::withMessages([
-            'class_levels.0.level' => 'A new class may begin only after the original class is at least 6th level (Suor Nor house rule).',
+            'class_levels.0.level' => 'A new class may begin only after the original class is at least 6th level (house dual-class).',
         ]);
     }
 

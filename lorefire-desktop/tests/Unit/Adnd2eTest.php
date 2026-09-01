@@ -133,18 +133,18 @@ class Adnd2eTest extends TestCase
         $this->assertSame(11, Adnd2e::combinedThac0($entries));
         $this->assertSame('d10/d6', Adnd2e::combinedHitDie($entries));
 
-        $logain = Adnd2e::normalizeClassLevels([
+        $dual = Adnd2e::normalizeClassLevels([
             ['class' => 'Psionicist', 'level' => 9],
             ['class' => 'Fighter', 'level' => 10],
         ], 'Psionicist', 9, 'dual');
-        $this->assertSame('Psionicist → Fighter', Adnd2e::displayClassName($logain, 'dual'));
-        $this->assertSame(10, Adnd2e::displayLevel($logain, 'dual'));
-        $this->assertSame(11, Adnd2e::combinedThac0($logain));
+        $this->assertSame('Psionicist → Fighter', Adnd2e::displayClassName($dual, 'dual'));
+        $this->assertSame(10, Adnd2e::displayLevel($dual, 'dual'));
+        $this->assertSame(11, Adnd2e::combinedThac0($dual));
         $this->assertTrue(Adnd2e::canResumeOriginalClass(10));
-        $this->assertTrue(Adnd2e::dualResumeAllowed($logain));
+        $this->assertTrue(Adnd2e::dualResumeAllowed($dual));
     }
 
-    public function test_suor_nor_house_dual_switch_gates(): void
+    public function test_house_dual_switch_gates(): void
     {
         $this->assertSame(5, Adnd2e::HOUSE_DUAL_MIN_ORIGINAL_LEVEL - 1);
         $this->assertSame(5, Adnd2e::HOUSE_DUAL_RESUME_NEW_LEVEL);
@@ -168,11 +168,11 @@ class Adnd2eTest extends TestCase
         $this->assertTrue(Adnd2e::canResumeOriginalClass(5));
         $this->assertTrue(Adnd2e::dualResumeAllowed($fighter5));
 
-        $logain = Adnd2e::normalizeClassLevels([
+        $dual = Adnd2e::normalizeClassLevels([
             ['class' => 'Psionicist', 'level' => 9],
             ['class' => 'Fighter', 'level' => 10],
         ], 'Psionicist', 9, 'dual');
-        $this->assertTrue(Adnd2e::dualResumeAllowed($logain));
+        $this->assertTrue(Adnd2e::dualResumeAllowed($dual));
         $this->assertTrue(Adnd2e::canResumeOriginalClass(10));
 
         $psi9fighter5 = Adnd2e::normalizeClassLevels([

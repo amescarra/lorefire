@@ -34,7 +34,7 @@ class OraclePromptTest extends TestCase
         $this->assertStringContainsString('## Campaign Data', $prompt);
         $this->assertStringContainsString('Empty Table', $prompt);
         $this->assertStringContainsString('do not quote copyrighted rulebook text', $prompt);
-        $this->assertStringContainsString('Suor Nor house switch', $prompt);
+        $this->assertStringContainsString('house switch', $prompt);
         $this->assertStringContainsString('when the new class is 5th', $prompt);
     }
 
@@ -42,14 +42,14 @@ class OraclePromptTest extends TestCase
     {
         $prompt = app(OracleController::class)->buildSystemPrompt([
             'campaigns' => [[
-                'name' => 'Suor Nor',
+                'name' => 'Moonshae Run',
                 'description' => 'The fighter house chronicle.',
                 'notes' => 'Full master doc: origin of the six PCs and the broken oath.',
                 'characters' => [[
-                    'name' => 'Ailduin',
+                    'name' => 'Aelindra',
                     'race' => 'Elf',
                     'class' => 'Fighter/Mage',
-                    'backstory' => 'Born in the Suor Nor fighter house.',
+                    'backstory' => 'Born in the coastal fighter house.',
                     'thac0' => 20,
                     'armor_class' => 5,
                 ]],
@@ -60,7 +60,7 @@ class OraclePromptTest extends TestCase
         $this->assertStringContainsString('**Campaign notes:**', $prompt);
         $this->assertStringContainsString('Full master doc: origin of the six PCs and the broken oath.', $prompt);
         $this->assertStringContainsString('**Backstory:**', $prompt);
-        $this->assertStringContainsString('Born in the Suor Nor fighter house.', $prompt);
+        $this->assertStringContainsString('Born in the coastal fighter house.', $prompt);
         $this->assertStringNotContainsStringIgnoringCase('spell slots', $prompt);
         $this->assertStringNotContainsStringIgnoringCase('proficiency bonus', $prompt);
     }
