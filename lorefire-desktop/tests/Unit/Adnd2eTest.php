@@ -217,6 +217,14 @@ class Adnd2eTest extends TestCase
         $this->assertFalse($restored['is_cast']);
 
         $this->assertSame(['is_cast' => false, 'times_cast' => 0], Adnd2e::rememorizeSpellFields());
+
+        $copies = Adnd2e::memorizedCopyTotal([
+            ['name' => 'Magic Missile', 'times_memorized' => 3, 'is_prepared' => true],
+            ['name' => 'Sleep', 'times_memorized' => 0, 'is_prepared' => false],
+        ]);
+        $this->assertSame(3, $copies);
+        $this->assertSame(4, Adnd2e::slotCapacityAtLevel(['1' => 4, '2' => 2], 1));
+        $this->assertLessThanOrEqual(Adnd2e::slotCapacityAtLevel(['1' => 4], 1), $copies);
     }
 
     public function test_multi_class_uses_best_thac0_and_saves(): void

@@ -575,6 +575,27 @@ export function remainingMemorizedOf(spell: {
   return Math.max(0, timesMemorizedOf(spell) - (spell.times_cast ?? 0))
 }
 
+export function memorizedCopyTotal(spells: Array<{ times_memorized?: number | null; is_prepared?: boolean }>): number {
+  return spells.reduce((sum, spell) => sum + timesMemorizedOf(spell), 0)
+}
+
+export function remainingCopyTotal(spells: Array<{
+  times_memorized?: number | null
+  times_cast?: number | null
+  is_prepared?: boolean
+}>): number {
+  return spells.reduce((sum, spell) => sum + remainingMemorizedOf(spell), 0)
+}
+
+export function slotCapacityAtLevel(
+  memorization: Record<string, number> | null | undefined,
+  level: number,
+): number {
+  if (!memorization) return 0
+  const raw = memorization[String(level)] ?? (memorization as Record<number, number>)[level]
+  return Number(raw ?? 0) || 0
+}
+
 function parseExceptional(exceptional?: string | null): number | null {
   if (!exceptional) return null
   const v = exceptional.toUpperCase().trim()

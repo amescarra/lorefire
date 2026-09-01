@@ -41,7 +41,7 @@ class CharacterSpellMemorizationTest extends TestCase
             );
     }
 
-    public function test_same_spell_can_be_memorized_twice(): void
+    public function test_same_spell_can_be_memorized_multiple_times(): void
     {
         $character = Character::factory()->create([
             'name' => 'Elara',
@@ -59,15 +59,22 @@ class CharacterSpellMemorizationTest extends TestCase
         $this->assertTrue($spell->is_prepared);
 
         $this->patch(route('characters.spells.prepare', [$character, $spell]), [
-            'times_memorized' => 2,
+            'times_memorized' => 3,
         ])->assertRedirect();
 
         $spell->refresh();
-        $this->assertSame(2, $spell->times_memorized);
+        $this->assertSame(3, $spell->times_memorized);
         $this->assertSame(0, $spell->times_cast);
         $this->assertTrue($spell->is_prepared);
         $this->assertFalse($spell->is_cast);
-        $this->assertSame(2, $spell->remaining_memorized);
+        $this->assertSame(3, $spell->remaining_memorized);
+
+        $this->get(route('characters.show', $character))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Characters/Show')
+                ->where('character.spells.0.times_memorized', 3)
+            );
     }
 
     public function test_priest_can_mark_memorized_copies(): void

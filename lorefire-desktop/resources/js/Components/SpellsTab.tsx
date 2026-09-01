@@ -4,7 +4,7 @@ import { CharacterSpell } from '@/types'
 import { Button } from '@/Components/Button'
 import { Input, Select, Textarea } from '@/Components/Input'
 import { MemorizedControl } from '@/Components/MemorizedControl'
-import { remainingMemorizedOf, timesMemorizedOf } from '@/lib/adnd2e'
+import { memorizedCopyTotal, remainingCopyTotal, remainingMemorizedOf, slotCapacityAtLevel, timesMemorizedOf } from '@/lib/adnd2e'
 
 // ── Spell school colours ──────────────────────────────────────────────
 const SCHOOL_COLORS: Record<string, string> = {
@@ -94,10 +94,11 @@ interface Props {
   characterId: number
   characterClass: string
   spells: CharacterSpell[]
+  memorization?: Record<string, number> | null
 }
 
 // ── Main component ────────────────────────────────────────────────────
-export function SpellsTab({ characterId, characterClass, spells }: Props) {
+export function SpellsTab({ characterId, characterClass, spells, memorization = null }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingSpell, setEditingSpell] = useState<CharacterSpell | null>(null)
   const [form, setForm] = useState<SpellForm>(BLANK_SPELL)
@@ -192,14 +193,16 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     return acc
   }, {})
   const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b)
-  const memorizedCount = spells.filter(s => timesMemorizedOf(s) > 0).length
+  const memorizedCopies = memorizedCopyTotal(spells)
+  const remainingCopies = remainingCopyTotal(spells)
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">
-          {spells.length} known · {memorizedCount} memorized
+        <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]" data-testid="spell-copy-summary">
+          {spells.length} known · {memorizedCopies} memorized copies
+          {memorizedCopies > 0 && remainingCopies < memorizedCopies ? ` · ${remainingCopies} left` : ''}
         </p>
         <div className="flex items-center gap-2">
           <div className="flex rounded border overflow-hidden" style={{ borderColor: 'var(--color-border)' }} data-testid="spell-filter">
@@ -247,13 +250,25 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       )}
 
       {/* Spell list grouped by level */}
-      {levels.map(level => (
+      {levels.map(level => {
+        const copiesAtLevel = spells
+          .filter(s => s.level === level)
+          .reduce((sum, s) => sum + timesMemorizedOf(s), 0)
+        const slots = slotCapacityAtLevel(memorization, level)
+        const overSlots = slots > 0 && copiesAtLevel > slots
+        return (
         <div key={level} className="flex flex-col gap-1">
           <p
             className="text-[10px] uppercase tracking-widest font-heading mb-1"
-            style={{ color: 'var(--color-text-dim)' }}
+            style={{ color: overSlots ? 'var(--color-danger)' : 'var(--color-text-dim)' }}
+            data-testid={`spell-level-copies-${level}`}
           >
             {SPELL_LEVEL_LABELS[level] ?? `Level ${level}`}
+            {slots > 0
+              ? ` · ${copiesAtLevel} / ${slots} slots`
+              : copiesAtLevel > 0
+                ? ` · ${copiesAtLevel} ${copiesAtLevel === 1 ? 'copy' : 'copies'}`
+                : ''}
           </p>
           {byLevel[level].sort((a, b) => a.name.localeCompare(b.name)).map(spell => (
             <SpellRow
@@ -267,7 +282,8 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
             />
           ))}
         </div>
-      ))}
+        )
+      })}
 
       {/* Add / Edit modal */}
       {modalOpen && (

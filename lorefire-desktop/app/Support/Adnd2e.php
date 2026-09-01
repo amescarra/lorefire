@@ -1104,6 +1104,38 @@ class Adnd2e
     }
 
     /**
+     * Copies fill slots, not distinct spell names.
+     *
+     * @param  array<int, array<string, mixed>>  $spells
+     */
+    public static function memorizedCopyTotal(array $spells): int
+    {
+        $sum = 0;
+        foreach ($spells as $spell) {
+            $sum += self::effectiveTimesMemorized(
+                (int) ($spell['times_memorized'] ?? 0),
+                (bool) ($spell['is_prepared'] ?? false),
+            );
+        }
+
+        return $sum;
+    }
+
+    /**
+     * @param  array<string|int, mixed>|null  $memorization
+     */
+    public static function slotCapacityAtLevel(?array $memorization, int $level): int
+    {
+        if ($memorization === null || $memorization === []) {
+            return 0;
+        }
+
+        $raw = $memorization[(string) $level] ?? $memorization[$level] ?? 0;
+
+        return (int) $raw;
+    }
+
+    /**
      * Default field bag when creating a character.
      *
      * @return array<string, mixed>

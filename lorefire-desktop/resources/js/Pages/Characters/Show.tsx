@@ -429,6 +429,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
               characterId={character.id}
               characterClass={character.class}
               spells={character.spells ?? []}
+              memorization={character.memorization}
             />
           </div>
         )}
