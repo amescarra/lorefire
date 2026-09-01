@@ -3,6 +3,8 @@ import { router } from '@inertiajs/react'
 import { CharacterSpell } from '@/types'
 import { Button } from '@/Components/Button'
 import { Input, Select, Textarea } from '@/Components/Input'
+import { MemorizedControl } from '@/Components/MemorizedControl'
+import { remainingMemorizedOf, timesMemorizedOf } from '@/lib/adnd2e'
 
 // ── Spell school colours ──────────────────────────────────────────────
 const SCHOOL_COLORS: Record<string, string> = {
@@ -82,7 +84,7 @@ const BLANK_SPELL = {
   components: '',
   duration: '',
   description: '',
-  is_prepared: false,
+  times_memorized: 0,
 }
 
 type SpellForm = typeof BLANK_SPELL
@@ -102,6 +104,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [expandedSpell, setExpandedSpell] = useState<number | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'memorized'>('all')
 
   const suggestions = CLASS_SPELL_SUGGESTIONS[characterClass] ?? CLASS_SPELL_SUGGESTIONS[characterClass === 'Wizard' ? 'Mage' : 'Other'] ?? CLASS_SPELL_SUGGESTIONS['Other']
 
@@ -123,7 +126,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       components: spell.components ?? '',
       duration: spell.duration ?? '',
       description: spell.description ?? '',
-      is_prepared: spell.is_prepared,
+      times_memorized: timesMemorizedOf(spell),
     })
     setShowSuggestions(false)
     setModalOpen(true)
@@ -139,7 +142,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
       components: s.components,
       duration: s.duration,
       description: '',
-      is_prepared: true,
+      times_memorized: 0,
     })
     setShowSuggestions(false)
   }
@@ -154,7 +157,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     setSubmitting(true)
     const payload = {
       ...form,
-      is_prepared: form.is_prepared ? 1 : 0,
+      times_memorized: form.times_memorized,
     }
     if (editingSpell) {
       router.patch(`/characters/${characterId}/spells/${editingSpell.id}`, payload, {
@@ -174,27 +177,52 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
     router.delete(`/characters/${characterId}/spells/${spell.id}`, { preserveScroll: true })
   }
 
-  const togglePrepared = (spell: CharacterSpell) => {
-    router.patch(`/characters/${characterId}/spells/${spell.id}/prepare`, {}, { preserveScroll: true })
+  const setMemorized = (spell: CharacterSpell, times: number) => {
+    router.patch(`/characters/${characterId}/spells/${spell.id}/prepare`, {
+      times_memorized: times,
+    }, { preserveScroll: true })
   }
 
   // Group by level
-  const byLevel = spells.reduce<Record<number, CharacterSpell[]>>((acc, s) => {
+  const visible = filter === 'memorized'
+    ? spells.filter(s => timesMemorizedOf(s) > 0)
+    : spells
+  const byLevel = visible.reduce<Record<number, CharacterSpell[]>>((acc, s) => {
     ;(acc[s.level] ??= []).push(s)
     return acc
   }, {})
   const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b)
+  const memorizedCount = spells.filter(s => timesMemorizedOf(s) > 0).length
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">
-          {spells.length} spell{spells.length !== 1 ? 's' : ''} in repertoire
+          {spells.length} known · {memorizedCount} memorized
         </p>
-        <Button type="button" variant="ghost" size="sm" onClick={openAdd}>
-          + Add Spell
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded border overflow-hidden" style={{ borderColor: 'var(--color-border)' }} data-testid="spell-filter">
+            {(['all', 'memorized'] as const).map(key => (
+              <button
+                key={key}
+                type="button"
+                data-testid={`spell-filter-${key}`}
+                onClick={() => setFilter(key)}
+                className="px-2 py-1 text-[10px] uppercase tracking-widest"
+                style={{
+                  background: filter === key ? 'var(--color-rune)' : 'transparent',
+                  color: filter === key ? 'var(--color-text-white)' : 'var(--color-text-dim)',
+                }}
+              >
+                {key === 'all' ? 'All known' : 'Memorized'}
+              </button>
+            ))}
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={openAdd}>
+            + Add Spell
+          </Button>
+        </div>
       </div>
 
       {/* Empty state */}
@@ -210,6 +238,12 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
             </p>
           )}
         </div>
+      )}
+
+      {spells.length > 0 && visible.length === 0 && (
+        <p className="text-sm text-[var(--color-text-dim)] text-center py-6">
+          No memorized spells. Known spells stay on the list under All known.
+        </p>
       )}
 
       {/* Spell list grouped by level */}
@@ -229,7 +263,7 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
               onToggleExpand={() => setExpandedSpell(expandedSpell === spell.id ? null : spell.id)}
               onEdit={() => openEdit(spell)}
               onDelete={() => deleteSpell(spell)}
-              onTogglePrepared={() => togglePrepared(spell)}
+              onSetMemorized={times => setMemorized(spell, times)}
             />
           ))}
         </div>
@@ -255,35 +289,35 @@ export function SpellsTab({ characterId, characterClass, spells }: Props) {
 
 // ── Spell row ─────────────────────────────────────────────────────────
 function SpellRow({
-  spell, expanded, onToggleExpand, onEdit, onDelete, onTogglePrepared,
+  spell, expanded, onToggleExpand, onEdit, onDelete, onSetMemorized,
 }: {
   spell: CharacterSpell
   expanded: boolean
   onToggleExpand: () => void
   onEdit: () => void
   onDelete: () => void
-  onTogglePrepared: () => void
+  onSetMemorized: (times: number) => void
 }) {
   const schoolColor = SCHOOL_COLORS[spell.school?.toLowerCase() ?? ''] ?? 'var(--color-text-dim)'
+  const times = timesMemorizedOf(spell)
+  const remaining = remainingMemorizedOf(spell)
   return (
     <div
       className="rounded border transition-colors"
+      data-testid="spell-row"
+      data-memorized={times > 0 ? 'true' : 'false'}
       style={{
-        borderColor: expanded ? 'var(--color-rune-dim)' : 'var(--color-border)',
-        background: 'var(--color-deep)',
+        borderColor: expanded || times > 0 ? 'var(--color-rune-dim)' : 'var(--color-border)',
+        background: times > 0 ? 'color-mix(in srgb, var(--color-rune) 8%, var(--color-deep))' : 'var(--color-deep)',
+        opacity: times > 0 ? 1 : 0.78,
       }}
     >
       {/* Row header */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          title={spell.is_prepared ? 'Memorized — click to clear' : 'Click to memorize'}
-          onClick={onTogglePrepared}
-          className="shrink-0 w-3 h-3 rounded-full border transition-colors"
-          style={{
-            borderColor: spell.is_prepared ? 'var(--color-rune)' : 'var(--color-border)',
-            background: spell.is_prepared ? 'var(--color-rune)' : 'transparent',
-          }}
+      <div className="flex items-center gap-2 px-3 py-2 flex-wrap">
+        <MemorizedControl
+          timesMemorized={times}
+          remaining={remaining}
+          onChange={onSetMemorized}
         />
 
         {/* Name + badges */}
@@ -297,6 +331,9 @@ function SpellRow({
 
         {/* Tags */}
         <div className="flex items-center gap-1 shrink-0">
+          {times > 0 && remaining === 0 && (
+            <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>Cast</span>
+          )}
           {spell.school && (
             <span
               className="hidden sm:inline px-1.5 py-0 text-[9px] rounded uppercase tracking-widest leading-4"
@@ -583,35 +620,12 @@ function ManualSpellForm({
         placeholder="Brief description or notes…"
       />
 
-      {/* Toggles */}
       <div className="flex flex-wrap gap-3">
-        {form.level > 0 && (
-          <ToggleChip
-            label="Memorized"
-            active={form.is_prepared}
-            onClick={() => set('is_prepared', !form.is_prepared)}
-            hint="Currently memorized"
-          />
-        )}
+        <MemorizedControl
+          timesMemorized={form.times_memorized}
+          onChange={times => set('times_memorized', times)}
+        />
       </div>
     </>
-  )
-}
-
-function ToggleChip({ label, active, onClick, hint }: { label: string; active: boolean; onClick: () => void; hint?: string }) {
-  return (
-    <button
-      type="button"
-      title={hint}
-      onClick={onClick}
-      className="px-3 py-1.5 rounded text-xs uppercase tracking-widest border transition-colors"
-      style={{
-        borderColor: active ? 'var(--color-rune)' : 'var(--color-border)',
-        color: active ? 'var(--color-rune-bright)' : 'var(--color-text-dim)',
-        background: active ? 'var(--color-rune)1a' : 'transparent',
-      }}
-    >
-      {label}
-    </button>
   )
 }

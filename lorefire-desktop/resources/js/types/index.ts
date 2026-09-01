@@ -96,6 +96,9 @@ export interface CharacterSpell {
   description: string | null
   is_prepared: boolean
   is_cast: boolean
+  times_memorized: number
+  times_cast: number
+  remaining_memorized?: number
 }
 
 export interface InventoryItem {

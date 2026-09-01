@@ -9,7 +9,7 @@ import { ConditionManager } from '@/Components/ConditionManager'
 import { HpBar } from '@/Components/HpBar'
 import { useRecording } from '@/Contexts/RecordingContext'
 import { Campaign, GameSession, Character, InventoryItem, CharacterSpell } from '@/types'
-import { formatSigned, primaryAdjustment, vitalityState } from '@/lib/adnd2e'
+import { formatSigned, primaryAdjustment, remainingMemorizedOf, timesMemorizedOf, vitalityState } from '@/lib/adnd2e'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -290,6 +290,10 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
     })
   }
 
+  const burnSpell = (spell: CharacterSpell, action: 'use' | 'recover') => {
+    router.patch(`/characters/${character.id}/spells/${spell.id}/cast`, { action }, { preserveScroll: true })
+  }
+
   // ── HP pct colour ─────────────────────────────────────────────────────────
 
   const hpPct = character.max_hp > 0 ? (currentHp / character.max_hp) * 100 : 0
@@ -531,22 +535,36 @@ function CharacterCard({ character, campaignId }: { character: Character; campai
               </div>
             )}
 
-            {/* Prepared spells list */}
             {character.spells && character.spells.length > 0 && (
               <div className="flex flex-col gap-1">
                 <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-dim)' }}>Memorized</p>
                 {character.spells
-                  .filter(s => s.is_prepared)
+                  .filter(s => timesMemorizedOf(s) > 0)
                   .sort((a, b) => a.level - b.level)
-                  .map(spell => (
-                    <div key={spell.id} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)' }}>
-                      <span className="text-[9px] font-mono shrink-0" style={{ color: 'var(--color-rune-dim)' }}>
-                        {spell.level}
-                      </span>
-                      <span className="text-xs flex-1 truncate" style={{ color: 'var(--color-text-bright)' }}>{spell.name}</span>
-                      {spell.is_cast && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>cast</span>}
-                    </div>
-                  ))}
+                  .map(spell => {
+                    const remaining = remainingMemorizedOf(spell)
+                    const copies = timesMemorizedOf(spell)
+                    return (
+                      <button
+                        key={spell.id}
+                        type="button"
+                        title={remaining > 0 ? 'Click to cast one copy · right-click to restore' : 'Right-click to restore one copy'}
+                        onClick={() => remaining > 0 && burnSpell(spell, 'use')}
+                        onContextMenu={e => { e.preventDefault(); remaining < copies && burnSpell(spell, 'recover') }}
+                        className="flex items-center gap-2 px-2 py-1 rounded text-left"
+                        style={{ background: 'var(--color-deep)', border: '1px solid var(--color-border)', opacity: remaining > 0 ? 1 : 0.5 }}
+                      >
+                        <span className="text-[9px] font-mono shrink-0" style={{ color: 'var(--color-rune-dim)' }}>
+                          {spell.level}
+                        </span>
+                        <span className="text-xs flex-1 truncate" style={{ color: 'var(--color-text-bright)' }}>{spell.name}</span>
+                        <span className="text-[8px] font-mono shrink-0" style={{ color: 'var(--color-text-dim)' }}>
+                          {remaining}/{copies}
+                        </span>
+                        {remaining === 0 && <span className="text-[8px]" style={{ color: 'var(--color-text-dim)' }}>cast</span>}
+                      </button>
+                    )
+                  })}
               </div>
             )}
 

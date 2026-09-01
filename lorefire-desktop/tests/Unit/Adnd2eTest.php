@@ -188,6 +188,37 @@ class Adnd2eTest extends TestCase
         ], 'Fighter', 4));
     }
 
+    public function test_vancian_spell_copies_and_cast_burn_one_instance(): void
+    {
+        $this->assertSame(2, Adnd2e::timesMemorizedFromInput(2, false));
+        $this->assertSame(1, Adnd2e::timesMemorizedFromInput(null, true));
+        $this->assertSame(0, Adnd2e::timesMemorizedFromInput(0, true));
+        $this->assertSame(1, Adnd2e::effectiveTimesMemorized(0, true));
+
+        $two = Adnd2e::spellVancianFlags(2, 0);
+        $this->assertTrue($two['is_prepared']);
+        $this->assertFalse($two['is_cast']);
+        $this->assertSame(2, Adnd2e::remainingMemorized(2, 0));
+
+        $afterOne = Adnd2e::burnMemorizedInstance(2, 0);
+        $this->assertSame(1, $afterOne['times_cast']);
+        $this->assertFalse($afterOne['is_cast']);
+        $this->assertSame(1, Adnd2e::remainingMemorized($afterOne['times_memorized'], $afterOne['times_cast']));
+
+        $afterTwo = Adnd2e::burnMemorizedInstance(2, 1);
+        $this->assertTrue($afterTwo['is_cast']);
+        $this->assertSame(2, $afterTwo['times_cast']);
+
+        $capped = Adnd2e::burnMemorizedInstance(2, 2);
+        $this->assertSame(2, $capped['times_cast']);
+
+        $restored = Adnd2e::restoreMemorizedInstance(2, 2);
+        $this->assertSame(1, $restored['times_cast']);
+        $this->assertFalse($restored['is_cast']);
+
+        $this->assertSame(['is_cast' => false, 'times_cast' => 0], Adnd2e::rememorizeSpellFields());
+    }
+
     public function test_multi_class_uses_best_thac0_and_saves(): void
     {
         $entries = Adnd2e::normalizeClassLevels(null, 'Fighter/Mage', 5, 'multi');

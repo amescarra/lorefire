@@ -45,6 +45,9 @@ class Adnd2e
      */
     public const HOUSE_DUAL_RESUME_NEW_LEVEL = 5;
 
+    /** Copies of one known spell that may be marked memorized (2E Vancian). */
+    public const MAX_TIMES_MEMORIZED = 12;
+
     /**
      * Discipline name labels for the typed-power datalist only.
      * Not kits, specialist schools, or subclass suggestions.
@@ -1028,6 +1031,76 @@ class Adnd2e
             'memorization_used' => null,
             'class_features' => $cf,
         ];
+    }
+
+    /**
+     * @return array{is_cast: bool, times_cast: int}
+     */
+    public static function rememorizeSpellFields(): array
+    {
+        return [
+            'is_cast' => false,
+            'times_cast' => 0,
+        ];
+    }
+
+    public static function timesMemorizedFromInput(?int $timesMemorized, mixed $isPrepared = false): int
+    {
+        if ($timesMemorized !== null) {
+            return max(0, min(self::MAX_TIMES_MEMORIZED, $timesMemorized));
+        }
+
+        return filter_var($isPrepared, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+    }
+
+    public static function effectiveTimesMemorized(int $timesMemorized, bool $isPrepared): int
+    {
+        if ($timesMemorized > 0) {
+            return $timesMemorized;
+        }
+
+        return $isPrepared ? 1 : 0;
+    }
+
+    public static function remainingMemorized(int $timesMemorized, int $timesCast): int
+    {
+        return max(0, $timesMemorized - $timesCast);
+    }
+
+    /**
+     * @return array{times_memorized: int, times_cast: int, is_prepared: bool, is_cast: bool}
+     */
+    public static function spellVancianFlags(int $timesMemorized, int $timesCast): array
+    {
+        $timesMemorized = max(0, min(self::MAX_TIMES_MEMORIZED, $timesMemorized));
+        $timesCast = max(0, min($timesMemorized, $timesCast));
+
+        return [
+            'times_memorized' => $timesMemorized,
+            'times_cast' => $timesCast,
+            'is_prepared' => $timesMemorized > 0,
+            'is_cast' => $timesMemorized > 0 && $timesCast >= $timesMemorized,
+        ];
+    }
+
+    /**
+     * @return array{times_memorized: int, times_cast: int, is_prepared: bool, is_cast: bool}
+     */
+    public static function burnMemorizedInstance(int $timesMemorized, int $timesCast): array
+    {
+        if ($timesMemorized < 1 || $timesCast >= $timesMemorized) {
+            return self::spellVancianFlags($timesMemorized, $timesCast);
+        }
+
+        return self::spellVancianFlags($timesMemorized, $timesCast + 1);
+    }
+
+    /**
+     * @return array{times_memorized: int, times_cast: int, is_prepared: bool, is_cast: bool}
+     */
+    public static function restoreMemorizedInstance(int $timesMemorized, int $timesCast): array
+    {
+        return self::spellVancianFlags($timesMemorized, max(0, $timesCast - 1));
     }
 
     /**

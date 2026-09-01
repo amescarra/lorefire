@@ -210,6 +210,9 @@ export const CONDITIONS_2E = [
 
 export const DEATH_THRESHOLD = -10
 
+/** Copies of one known spell that may be marked memorized (2E Vancian). */
+export const MAX_TIMES_MEMORIZED = 12
+
 /** House dual-class: original class must be this level before a new class may begin. */
 export const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6
 
@@ -556,6 +559,20 @@ export function isCaster(characterClass: string, level: number): boolean {
   if (c === 'Paladin') return level >= 9
   if (c === 'Ranger') return level >= 8
   return false
+}
+
+export function timesMemorizedOf(spell: { times_memorized?: number | null; is_prepared?: boolean }): number {
+  const n = spell.times_memorized ?? 0
+  if (n > 0) return n
+  return spell.is_prepared ? 1 : 0
+}
+
+export function remainingMemorizedOf(spell: {
+  times_memorized?: number | null
+  times_cast?: number | null
+  is_prepared?: boolean
+}): number {
+  return Math.max(0, timesMemorizedOf(spell) - (spell.times_cast ?? 0))
 }
 
 function parseExceptional(exceptional?: string | null): number | null {

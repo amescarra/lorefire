@@ -88,11 +88,25 @@ class Adnd2eCharacterTest extends TestCase
             'memorization_used' => [1 => 2],
         ]);
 
+        $spell = $character->spells()->create([
+            'name' => 'Magic Missile',
+            'level' => 1,
+            'times_memorized' => 2,
+            'times_cast' => 2,
+        ]);
+        $this->assertTrue($spell->fresh()->is_prepared);
+        $this->assertTrue($spell->fresh()->is_cast);
+
         $this->post(route('characters.rest.overnight', $character))->assertRedirect();
 
         $character->refresh();
+        $spell->refresh();
         $this->assertSame(5, $character->current_hp);
         $this->assertNull($character->memorization_used);
+        $this->assertSame(2, $spell->times_memorized);
+        $this->assertSame(0, $spell->times_cast);
+        $this->assertFalse($spell->is_cast);
+        $this->assertTrue($spell->is_prepared);
     }
 
     public function test_hit_points_can_drop_to_negative_ten(): void

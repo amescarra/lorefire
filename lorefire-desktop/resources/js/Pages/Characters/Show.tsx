@@ -9,6 +9,7 @@ import { RuneDivider } from '@/Components/RuneDivider'
 import { Input } from '@/Components/Input'
 import { Campaign, Character, InventoryItem, InventorySnapshot } from '@/types'
 import { ConditionManager } from '@/Components/ConditionManager'
+import { SpellsTab } from '@/Components/SpellsTab'
 import {
   SAVE_CATEGORIES, anyCaster, formatSigned, hasPsionicist, normalizeClassLevels, primaryAdjustment, vitalityState,
 } from '@/lib/adnd2e'
@@ -424,33 +425,11 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
               </Card>
             )}
 
-            {/* ── Spell list ───────────────────────────────────────── */}
-            {!character.spells || character.spells.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-dim)] text-center py-8">No spells recorded.</p>
-            ) : (
-              Object.entries(
-                character.spells.reduce((acc, spell) => {
-                  const lvl = spell.level
-                  if (!acc[lvl]) acc[lvl] = []
-                  acc[lvl].push(spell)
-                  return acc
-                }, {} as Record<number, typeof character.spells>)
-              ).sort(([a],[b]) => Number(a) - Number(b)).map(([level, spells]) => (
-                <div key={level}>
-                  <p className="text-xs uppercase tracking-widest text-[var(--color-rune)] mb-2">
-                    {`Level ${level} Spells`}
-                  </p>
-                  {spells!.map(spell => (
-                    <div key={spell.id} className="runic-card px-3 py-2 mb-1 flex items-center gap-2">
-                      {spell.is_prepared && <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-rune)] shrink-0" />}
-                      <span className="text-sm text-[var(--color-text-bright)]">{spell.name}</span>
-                      {spell.school && <span className="text-[10px] text-[var(--color-text-dim)] ml-auto">{spell.school}</span>}
-                      {spell.is_cast && <Badge variant="muted">Cast</Badge>}
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
+            <SpellsTab
+              characterId={character.id}
+              characterClass={character.class}
+              spells={character.spells ?? []}
+            />
           </div>
         )}
 

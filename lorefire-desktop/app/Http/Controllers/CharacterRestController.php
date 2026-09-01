@@ -25,7 +25,7 @@ class CharacterRestController extends Controller
         );
 
         $character->update($result);
-        $character->spells()->update(['is_cast' => false]);
+        $character->spells()->update(Adnd2e::rememorizeSpellFields());
 
         return back()->with('success', 'Overnight rest taken. One hit point recovered; memorized spells are available again.');
     }
