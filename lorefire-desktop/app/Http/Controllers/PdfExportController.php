@@ -76,7 +76,7 @@ class PdfExportController extends Controller
 
     /**
      * Poll the status of a PDF export job.
-     * Returns { status: 'pending' | 'done' | 'failed', filename?, error? }
+     * Returns { status: 'pending' | 'done' | 'failed' | 'preview', filename?, error?, preview_url?, message? }
      */
     public function status(Request $request): JsonResponse
     {
@@ -84,6 +84,86 @@ class PdfExportController extends Controller
         $data = Cache::get($key);
 
         return response()->json($data ?? ['status' => 'pending']);
+    }
+
+    /**
+     * Serve a local print-preview of the combined HTML when NativePHP
+     * printToPDF is unavailable. The page is print-friendly (Save as PDF).
+     */
+    public function preview(Request $request): \Illuminate\Http\Response
+    {
+        $key = (string) $request->query('key', '');
+        if ($key === '' || ! preg_match('/^pdf_export_[a-zA-Z0-9_-]+$/', $key)) {
+            abort(404);
+        }
+
+        $data = Cache::get($key);
+        if (! is_array($data) || ($data['status'] ?? '') !== 'preview') {
+            abort(404);
+        }
+
+        $safe = preg_replace('/[^a-zA-Z0-9_-]/', '', $key);
+        $path = storage_path('app/pdf-previews/'.$safe.'.html');
+        if (! is_file($path)) {
+            abort(404);
+        }
+
+        $html = (string) file_get_contents($path);
+        $html = $this->injectPrintChrome($html);
+
+        return response($html, 200, [
+            'Content-Type'  => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    private function injectPrintChrome(string $html): string
+    {
+        $chrome = <<<'HTML'
+<style id="pdf-preview-chrome-style">
+  .pdf-preview-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 10px 16px;
+    background: #1a1814;
+    border-bottom: 1px solid #8b6c3e;
+    color: #c8bfa8;
+    font-family: Georgia, serif;
+    font-size: 13px;
+  }
+  .pdf-preview-toolbar p { margin: 0; flex: 1 1 240px; }
+  .pdf-preview-toolbar button {
+    cursor: pointer;
+    border: 1px solid #c9963a;
+    background: transparent;
+    color: #f0ead8;
+    padding: 6px 14px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+  .pdf-preview-toolbar button:hover { background: rgba(201,150,58,0.15); }
+  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @media print {
+    .pdf-preview-toolbar { display: none !important; }
+  }
+</style>
+<div class="pdf-preview-toolbar">
+  <p>Native PDF export is unavailable. Print this page and choose Save as PDF.</p>
+  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+  <button type="button" onclick="history.back()">Back</button>
+</div>
+HTML;
+
+        if (preg_match('/<body[^>]*>/i', $html)) {
+            return (string) preg_replace('/<body[^>]*>/i', '$0'.$chrome, $html, 1);
+        }
+
+        return $chrome.$html;
     }
 
     /**

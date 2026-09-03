@@ -535,8 +535,8 @@ export default function Show({ campaign, session, characters, transcriptSegments
             )}
           </div>
           <div className="flex gap-2 shrink-0">
-            <Button variant="ghost" size="sm" onClick={pdf.trigger} disabled={pdf.status === 'pending'}>
-              {pdf.status === 'pending' ? 'Generating PDF...' : pdf.status === 'done' ? 'PDF Saved!' : pdf.status === 'failed' ? 'Export Failed' : 'Export PDF'}
+            <Button variant="ghost" size="sm" onClick={() => pdf.trigger()} disabled={pdf.status === 'pending'}>
+              {pdf.status === 'pending' ? 'Generating PDF…' : pdf.status === 'done' ? 'PDF Saved!' : pdf.status === 'preview' ? 'Opening print preview…' : pdf.status === 'failed' ? 'Export Failed' : 'Export PDF'}
             </Button>
             <Button variant="ghost" size="sm" as="a" href={`/campaigns/${campaign.id}/sessions/${session.id}/edit`}>
               Edit

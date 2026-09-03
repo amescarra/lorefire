@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout'
 import { Button } from '@/Components/Button'
 import { Badge } from '@/Components/Badge'
 import { HpBar } from '@/Components/HpBar'
+import { pdfExportButtonLabel, usePdfExport } from '@/hooks/usePdfExport'
 import { Campaign, Character } from '@/types'
 
 interface Props {
@@ -16,9 +17,7 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
   const [selected, setSelected] = useState<Set<number>>(() => new Set(characters.map(c => c.id)))
   const [campaignFilter, setCampaignFilter] = useState<string>(selectedCampaign ? String(selectedCampaign.id) : '')
 
-  const exportUrl = '/batch-sheets/export'
-  const [exportStatus, setExportStatus] = useState<'idle' | 'pending' | 'done' | 'failed'>('idle')
-  const [exportError, setExportError] = useState<string | null>(null)
+  const pdf = usePdfExport('/batch-sheets/export')
 
   const filteredCharacters = useMemo(() => {
     if (!campaignFilter) return characters
@@ -28,7 +27,6 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
 
   const handleCampaignFilter = (value: string) => {
     setCampaignFilter(value)
-    // When filter changes, select all matching characters
     if (!value) {
       setSelected(new Set(characters.map(c => c.id)))
     } else {
@@ -67,61 +65,9 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
   const allSelected = filteredCharacters.length > 0 && selectedIds.length === filteredCharacters.length
   const noneSelected = selectedIds.length === 0
 
-  const handleExport = async () => {
-    if (noneSelected || exportStatus === 'pending') return
-    await triggerWithIds(selectedIds)
-  }
-
-  const triggerWithIds = async (ids: number[]) => {
-    if (exportStatus === 'pending') return
-    setExportStatus('pending')
-    setExportError(null)
-
-    try {
-      const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? ''
-      const res = await fetch(exportUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken,
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ character_ids: ids }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      const key: string = data.key
-
-      const poll = setInterval(async () => {
-        try {
-          const pr = await fetch(`/pdf-export/status?key=${encodeURIComponent(key)}`)
-          const pd = await pr.json()
-          if (pd.status === 'done') {
-            clearInterval(poll)
-            setExportStatus('done')
-            setTimeout(() => setExportStatus('idle'), 3500)
-          } else if (pd.status === 'failed') {
-            clearInterval(poll)
-            setExportError(pd.error ?? 'PDF generation failed')
-            setExportStatus('failed')
-            setTimeout(() => setExportStatus('idle'), 5000)
-          }
-        } catch {
-          // network hiccup — keep polling
-        }
-      }, 2000)
-    } catch {
-      setExportStatus('failed')
-      setExportError('Failed to start PDF export')
-      setTimeout(() => setExportStatus('idle'), 5000)
-    }
-  }
-
-  const exportLabel = () => {
-    if (exportStatus === 'pending') return 'Generating PDF…'
-    if (exportStatus === 'done') return 'Saved to Downloads ✓'
-    if (exportStatus === 'failed') return 'Export Failed'
-    return `Generate PDF (${selectedIds.length} sheet${selectedIds.length !== 1 ? 's' : ''})`
+  const handleExport = () => {
+    if (noneSelected || pdf.status === 'pending') return
+    pdf.trigger({ character_ids: selectedIds })
   }
 
   const breadcrumbs = [{ label: 'Batch Sheets' }]
@@ -132,7 +78,6 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
 
       <div className="max-w-3xl mx-auto">
 
-        {/* Header */}
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
           <div>
             <h1 className="font-heading text-2xl text-[var(--color-text-white)] tracking-widest uppercase">
@@ -146,23 +91,30 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
           <div className="flex gap-2 flex-wrap">
             <Button
               variant="rune"
-              disabled={noneSelected || exportStatus === 'pending'}
+              disabled={noneSelected || pdf.status === 'pending'}
               onClick={handleExport}
             >
               <PrintIcon />
-              {exportLabel()}
+              {pdfExportButtonLabel(
+                pdf.status,
+                `Generate PDF (${selectedIds.length} sheet${selectedIds.length !== 1 ? 's' : ''})`
+              )}
             </Button>
           </div>
         </div>
 
-        {/* Error banner */}
-        {exportError && (
+        {pdf.error && (
           <div className="mb-4 px-4 py-2 rounded border border-[var(--color-danger)] text-[var(--color-danger)] text-sm">
-            {exportError}
+            {pdf.error}
           </div>
         )}
 
-        {/* Filters */}
+        {pdf.status === 'preview' && (
+          <div className="mb-4 px-4 py-2 rounded border border-[var(--color-rune)] text-[var(--color-rune-bright)] text-sm">
+            Opening print preview. Use Print / Save as PDF from the preview window.
+          </div>
+        )}
+
         <div className="runic-card p-4 mb-4 flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <label className="text-xs uppercase tracking-widest text-[var(--color-text-dim)]">Campaign</label>
@@ -188,7 +140,6 @@ export default function BatchSheetsIndex({ characters, campaigns, selectedCampai
           </div>
         </div>
 
-        {/* Character list */}
         {filteredCharacters.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-text-dim)] text-sm">
             No characters found.
@@ -230,7 +181,6 @@ function CharacterRow({
             : 'hover:border-[var(--color-muted)]',
         ].join(' ')}
       >
-        {/* Checkbox */}
         <input
           type="checkbox"
           checked={checked}
@@ -238,7 +188,6 @@ function CharacterRow({
           className="w-4 h-4 shrink-0 accent-[var(--color-rune)] cursor-pointer"
         />
 
-        {/* Name + class */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="font-heading text-base text-[var(--color-text-white)] tracking-wide">
@@ -256,7 +205,6 @@ function CharacterRow({
           <HpBar current={character.current_hp} max={character.max_hp} className="mt-1.5 max-w-[160px]" />
         </div>
 
-        {/* Combat stats */}
         <div className="flex items-center gap-4 shrink-0 text-center">
           <div>
             <div className="font-heading text-sm text-[var(--color-rune-bright)]">{character.armor_class}</div>

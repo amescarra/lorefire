@@ -182,6 +182,8 @@ Route::post('campaigns/{campaign}/sessions/{session}/export-pdf', [PdfExportCont
     ->name('sessions.export-pdf');
 Route::get('pdf-export/status', [PdfExportController::class, 'status'])
     ->name('pdf-export.status');
+Route::get('pdf-export/preview', [PdfExportController::class, 'preview'])
+    ->name('pdf-export.preview');
 
 // Oracle
 Route::get('oracle', [OracleController::class, 'index'])->name('oracle.index');
