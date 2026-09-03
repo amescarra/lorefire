@@ -18,6 +18,7 @@ use App\Http\Controllers\NpcController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SceneImageController;
 use App\Http\Controllers\SpeakerProfileController;
+use App\Http\Controllers\BatchSheetController;
 use App\Http\Controllers\StandaloneCharacterController;
 use App\Http\Controllers\StorageFileController;
 use App\Http\Controllers\ChunkedAudioController;
@@ -169,6 +170,10 @@ Route::prefix('sessions/{session}')->name('sessions.')->group(function () {
     Route::delete('speakers/{speaker}',    [SpeakerProfileController::class, 'destroy'])->name('speakers.destroy');
     Route::delete('speakers',              [SpeakerProfileController::class, 'reset'])->name('speakers.reset');
 });
+
+// Batch character sheet PDF export
+Route::get('batch-sheets', [BatchSheetController::class, 'index'])->name('batch-sheets.index');
+Route::post('batch-sheets/export', [BatchSheetController::class, 'export'])->name('batch-sheets.export');
 
 // PDF export
 Route::post('campaigns/{campaign}/export-pdf', [PdfExportController::class, 'campaign'])
