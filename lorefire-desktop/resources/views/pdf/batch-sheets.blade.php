@@ -177,50 +177,31 @@
 
 @foreach($characters as $character)
 @php
-  $modMap = [
-    3 => -3, 4 => -2, 5 => -2, 6 => -1, 7 => -1,
-    8 => 0, 9 => 0, 10 => 0, 11 => 0, 12 => 0,
-    13 => 1, 14 => 1, 15 => 1, 16 => 2, 17 => 2,
-    18 => 3, 19 => 3, 20 => 3, 21 => 4, 22 => 4, 25 => 7,
-  ];
-  $fmt = fn (int $v) => $v > 0 ? "+{$v}" : (string) $v;
-  $mod = fn (int $score) => $fmt($modMap[$score] ?? 0);
-  $strMod = function (int $str, ?string $exc) use ($fmt, $modMap) {
-      if ($str === 18 && $exc) {
-          $p = (int) $exc;
-          if ($p <= 50) return '+1';
-          if ($p <= 75) return '+2';
-          if ($p <= 90) return '+3';
-          if ($p <= 99) return '+4';
-          return '+6';
-      }
-      return $fmt($modMap[$str] ?? 0);
-  };
-
-  $classDisplay = collect($character->class_levels ?? [])
-      ->map(fn ($cl) => ($cl['class'] ?? '').' '.($cl['level'] ?? ''))
-      ->filter()
-      ->join(' / ');
-  if ($classDisplay === '') {
-      $classDisplay = trim($character->class.' '.$character->level);
-  }
-  if (($character->class_path ?? '') === 'dual') {
+  $classEntries = $character->classEntries();
+  $classPath = (string) ($character->class_path ?? 'single');
+  $classDisplay = collect($classEntries)
+      ->map(fn (array $e) => $e['class'].' '.$e['level'])
+      ->join($classPath === 'dual' ? ' → ' : ' / ');
+  if ($classPath === 'dual') {
       $classDisplay = 'Dual-class '.$classDisplay;
+  } elseif ($classPath === 'multi') {
+      $classDisplay = 'Multi-class '.$classDisplay;
   }
 
-  $saves = $character->saving_throws ?? [];
-  $saveLabels = [
-      'paralyzation' => 'Paralyzation, Poison, or Death Magic',
-      'paralysis_poison_death' => 'Paralyzation, Poison, or Death Magic',
-      'rod' => 'Rod, Staff, or Wand',
-      'rod_staff_wand' => 'Rod, Staff, or Wand',
-      'petrification' => 'Petrification or Polymorph',
-      'petrification_polymorph' => 'Petrification or Polymorph',
-      'breath' => 'Breath Weapon',
-      'breath_weapon' => 'Breath Weapon',
-      'spell' => 'Spell',
-      'spells' => 'Spell',
-  ];
+  $adj = fn (string $ability) => \App\Support\Adnd2e::formatSigned($character->getModifier($ability));
+  $thac0 = $character->resolvedThac0();
+  $resolvedSaves = $character->resolvedSavingThrows();
+  $saves = [];
+  foreach (\App\Support\Adnd2e::SAVE_CATEGORIES as $key => $label) {
+      $saves[$key] = $resolvedSaves[$key] ?? 20;
+  }
+
+  $isPsionicist = \App\Support\Adnd2e::hasPsionicist(
+      $character->class_levels,
+      (string) $character->class,
+      (int) $character->level,
+      $classPath,
+  );
 
   $spellsByLevel = collect($character->spells ?? [])->sortBy(['level', 'name'])->groupBy('level');
   $hasCoins = ($character->copper + $character->silver + $character->electrum + $character->gold + $character->platinum) > 0;
@@ -307,12 +288,12 @@
           <td class="score">{{ $character->charisma }}</td>
         </tr>
         <tr>
-          <td>{{ $strMod($character->strength, $character->exceptional_strength) }}</td>
-          <td>{{ $mod($character->dexterity) }}</td>
-          <td>{{ $mod($character->constitution) }}</td>
-          <td>{{ $mod($character->intelligence) }}</td>
-          <td>{{ $mod($character->wisdom) }}</td>
-          <td>{{ $mod($character->charisma) }}</td>
+          <td data-mod="strength">{{ $adj('strength') }}</td>
+          <td data-mod="dexterity">{{ $adj('dexterity') }}</td>
+          <td data-mod="constitution">{{ $adj('constitution') }}</td>
+          <td data-mod="intelligence">{{ $adj('intelligence') }}</td>
+          <td data-mod="wisdom">{{ $adj('wisdom') }}</td>
+          <td data-mod="charisma">{{ $adj('charisma') }}</td>
         </tr>
       </table>
     </div>
@@ -330,7 +311,7 @@
         </div>
         <div class="stat-cell">
           <span class="lbl">THAC0</span>
-          <span class="val">{{ $character->thac0 }}</span>
+          <span class="val" data-thac0>{{ $thac0 }}</span>
         </div>
         @if($character->speed)
           <div class="stat-cell">
@@ -358,19 +339,17 @@
   @endif
 
   <div class="cols">
-    @if(count($saves))
-      <div class="box">
-        <div class="box-title">Saving Throws</div>
-        <table class="form">
-          @foreach($saves as $cat => $val)
-            <tr>
-              <td class="left">{{ $saveLabels[$cat] ?? ucwords(str_replace('_', ' ', (string) $cat)) }}</td>
-              <td>{{ $val }}</td>
-            </tr>
-          @endforeach
-        </table>
-      </div>
-    @endif
+    <div class="box">
+      <div class="box-title">Saving Throws</div>
+      <table class="form">
+        @foreach(\App\Support\Adnd2e::SAVE_CATEGORIES as $key => $label)
+          <tr>
+            <td class="left">{{ $label }}</td>
+            <td data-save="{{ $key }}">{{ $saves[$key] }}</td>
+          </tr>
+        @endforeach
+      </table>
+    </div>
 
     <div>
       @if($character->weapon_proficiencies && count($character->weapon_proficiencies))
@@ -408,11 +387,11 @@
     </div>
   @endif
 
-  @if($hasPsp || $hasPowers)
+  @if($isPsionicist || $hasPsp || $hasPowers)
     <div class="box">
       <div class="box-title">Psionics</div>
-      @if($hasPsp)
-        <div class="list">PSP {{ $character->psp_current }} / {{ $character->psp_max }}</div>
+      @if($isPsionicist || $hasPsp)
+        <div class="list">PSP {{ $character->psp_current ?? '—' }} / {{ $character->psp_max ?? '—' }}</div>
       @endif
       @if($hasPowers)
         <div class="list">{{ implode(', ', $character->psionic_powers) }}</div>

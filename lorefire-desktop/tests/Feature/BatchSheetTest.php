@@ -254,4 +254,60 @@ class BatchSheetTest extends TestCase
         $this->assertStringNotContainsString('Cinzel', $html);
         $this->assertStringNotContainsString('#c9963a', $html);
     }
+
+    public function test_batch_sheet_matches_live_adnd2e_modifiers_thac0_and_dual_class_line(): void
+    {
+        $character = Character::factory()->create([
+            'name' => 'Kael',
+            'race' => 'Human',
+            'class' => 'Psionicist',
+            'subclass' => null,
+            'class_path' => 'dual',
+            'class_levels' => [
+                ['class' => 'Psionicist', 'level' => 9],
+                ['class' => 'Fighter', 'level' => 10],
+            ],
+            'level' => 10,
+            'strength' => 16,
+            'dexterity' => 16,
+            'constitution' => 16,
+            'intelligence' => 16,
+            'wisdom' => 10,
+            'charisma' => 10,
+            'exceptional_strength' => null,
+            'psp_current' => 40,
+            'psp_max' => 55,
+            'psionic_powers' => ['Id Insinuation'],
+        ]);
+        $character->update([
+            'thac0' => \App\Support\Adnd2e::combinedThac0($character->classEntries()),
+            'saving_throws' => null,
+        ]);
+        $character->refresh();
+
+        $dexMod = \App\Support\Adnd2e::formatSigned($character->getModifier('dexterity'));
+        $intMod = \App\Support\Adnd2e::formatSigned($character->getModifier('intelligence'));
+        $thac0 = $character->resolvedThac0();
+        $saves = $character->resolvedSavingThrows();
+
+        $this->assertSame('+1', $dexMod);
+        $this->assertNotSame('+2', $dexMod);
+        $this->assertSame('+3', $intMod);
+
+        $html = view('pdf.batch-sheets', [
+            'characters' => collect([$character->load(['spells', 'inventoryItems', 'features', 'conditions', 'campaign'])]),
+            'baseUrl'    => 'http://localhost',
+        ])->render();
+
+        $this->assertStringContainsString('data-mod="dexterity">'.$dexMod, $html);
+        $this->assertStringContainsString('data-mod="intelligence">'.$intMod, $html);
+        $this->assertStringNotContainsString('data-mod="dexterity">+2', $html);
+        $this->assertStringContainsString('Dual-class', $html);
+        $this->assertStringContainsString('Psionicist 9', $html);
+        $this->assertStringContainsString('Fighter 10', $html);
+        $this->assertStringContainsString('data-thac0>'.$thac0, $html);
+        $this->assertStringContainsString('data-save="paralyzation">'.($saves['paralyzation'] ?? 20), $html);
+        $this->assertStringContainsString('PSP 40 / 55', $html);
+        $this->assertStringContainsString('Id Insinuation', $html);
+    }
 }
