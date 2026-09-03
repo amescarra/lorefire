@@ -168,6 +168,9 @@ class ExportPdfFallbackTest extends TestCase
             ->assertSee('Aelindra', false)
             ->assertSee('Print / Save as PDF', false)
             ->assertSee('pdf-preview-toolbar', false)
+            ->assertSee('data-print-url', false)
+            ->assertSee('/pdf-export/print', false)
+            ->assertDontSee('window.print()', false)
             ->assertDontSee('Edit Character', false);
     }
 
@@ -198,6 +201,93 @@ class ExportPdfFallbackTest extends TestCase
         ])
             ->assertOk()
             ->assertJsonStructure(['key']);
+    }
+
+    public function test_print_with_os_dialog_posts_silent_false_to_nativephp(): void
+    {
+        Http::fake([
+            '*' => Http::response(['ok' => true], 200),
+        ]);
+
+        $this->assertTrue((new NativePdfPrinter)->printWithOsDialog('<html><body>Sheet</body></html>'));
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'system/print')
+                && ($request['settings']['silent'] ?? true) === false;
+        });
+    }
+
+    public function test_print_with_os_dialog_returns_false_when_electron_is_down(): void
+    {
+        Http::fake(function () {
+            throw new \Illuminate\Http\Client\ConnectionException('Failed to connect');
+        });
+
+        $this->assertFalse((new NativePdfPrinter)->printWithOsDialog('<html></html>'));
+    }
+
+    public function test_preview_print_uses_native_dialog_when_it_succeeds(): void
+    {
+        $this->mock(NativePdfPrinter::class, function ($mock) {
+            $mock->shouldReceive('printToPdf')->andReturn(null);
+            $mock->shouldReceive('printWithOsDialog')->once()->andReturn(true);
+            $mock->shouldReceive('openHtmlInSystemBrowser')->never();
+        });
+
+        $character = Character::factory()->create(['name' => 'Thorin']);
+        $key = $this->postJson(route('batch-sheets.export'), [
+            'character_ids' => [$character->id],
+        ])->assertOk()->json('key');
+
+        $this->postJson(route('pdf-export.print'), ['key' => $key])
+            ->assertOk()
+            ->assertJsonPath('method', 'native-print');
+    }
+
+    public function test_preview_print_opens_system_browser_when_native_print_fails(): void
+    {
+        $this->mock(NativePdfPrinter::class, function ($mock) {
+            $mock->shouldReceive('printToPdf')->andReturn(null);
+            $mock->shouldReceive('printWithOsDialog')->once()->andReturn(false);
+            $mock->shouldReceive('openHtmlInSystemBrowser')
+                ->once()
+                ->andReturnUsing(function (string $html, string $basename) {
+                    $this->assertStringContainsString('Brom', $html);
+                    $this->assertStringNotContainsString('pdf-preview-toolbar', $html);
+                    $this->assertStringNotContainsString('window.print()', $html);
+
+                    return storage_path('app/pdf-previews/'.$basename.'.html');
+                });
+        });
+
+        $character = Character::factory()->create(['name' => 'Brom']);
+        $key = $this->postJson(route('batch-sheets.export'), [
+            'character_ids' => [$character->id],
+        ])->assertOk()->json('key');
+
+        $this->postJson(route('pdf-export.print'), ['key' => $key])
+            ->assertOk()
+            ->assertJsonPath('method', 'system-browser')
+            ->assertJsonPath('message', 'Opened in your browser. Use Print / Save as PDF there.');
+    }
+
+    public function test_open_html_in_system_browser_writes_sheet_file_without_toolbar(): void
+    {
+        $printer = \Mockery::mock(NativePdfPrinter::class)->makePartial();
+        $printer->shouldReceive('openPath')->once()->andReturn(true);
+
+        $path = $printer->openHtmlInSystemBrowser('<html><body>Cirin</body></html>', 'cirin-sheet');
+
+        $this->assertFileExists($path);
+        $this->assertStringEndsWith('.html', $path);
+        $this->assertStringContainsString('Cirin', (string) file_get_contents($path));
+        $this->assertStringNotContainsString('pdf-preview-toolbar', (string) file_get_contents($path));
+    }
+
+    public function test_preview_print_returns_404_without_preview(): void
+    {
+        $this->postJson(route('pdf-export.print'), ['key' => 'pdf_export_missing'])
+            ->assertNotFound();
     }
 
     private function makeJob(string $html, string $filename = 'sheets.pdf'): ExportPdf

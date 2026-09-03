@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ExportPdf;
 use App\Models\Campaign;
 use App\Models\GameSession;
+use App\Support\NativePdfPrinter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -92,7 +93,49 @@ class PdfExportController extends Controller
      */
     public function preview(Request $request): \Illuminate\Http\Response
     {
-        $key = (string) $request->query('key', '');
+        [$key, $html] = $this->resolvePreviewHtml($request);
+
+        $html = $this->injectPrintChrome($html, $key);
+
+        return response($html, 200, [
+            'Content-Type'  => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    /**
+     * Print action for the preview toolbar. Tries NativePHP OS print dialog,
+     * then opens the combined sheets in the system default browser.
+     */
+    public function print(Request $request, NativePdfPrinter $printer): JsonResponse
+    {
+        [, $html, $data] = $this->resolvePreviewHtml($request);
+
+        $filename = (string) ($data['filename'] ?? 'character-sheets.pdf');
+        $basename = preg_replace('/\.pdf$/i', '', $filename) ?: 'character-sheets';
+
+        if ($printer->printWithOsDialog($html)) {
+            return response()->json([
+                'method'  => 'native-print',
+                'message' => 'Print dialog opened.',
+            ]);
+        }
+
+        $path = $printer->openHtmlInSystemBrowser($html, $basename);
+
+        return response()->json([
+            'method'  => 'system-browser',
+            'message' => 'Opened in your browser. Use Print / Save as PDF there.',
+            'file'    => basename($path),
+        ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: array}
+     */
+    private function resolvePreviewHtml(Request $request): array
+    {
+        $key = (string) $request->input('key', $request->query('key', ''));
         if ($key === '' || ! preg_match('/^pdf_export_[a-zA-Z0-9_-]+$/', $key)) {
             abort(404);
         }
@@ -108,18 +151,16 @@ class PdfExportController extends Controller
             abort(404);
         }
 
-        $html = (string) file_get_contents($path);
-        $html = $this->injectPrintChrome($html);
-
-        return response($html, 200, [
-            'Content-Type'  => 'text/html; charset=UTF-8',
-            'Cache-Control' => 'no-store',
-        ]);
+        return [$key, (string) file_get_contents($path), $data];
     }
 
-    private function injectPrintChrome(string $html): string
+    private function injectPrintChrome(string $html, string $key): string
     {
-        $chrome = <<<'HTML'
+        $token = e(csrf_token());
+        $keyJs = e($key);
+        $printUrl = e(url('/pdf-export/print'));
+
+        $chrome = <<<HTML
 <style id="pdf-preview-chrome-style">
   .pdf-preview-toolbar {
     position: sticky;
@@ -129,34 +170,62 @@ class PdfExportController extends Controller
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 16px;
-    padding: 10px 16px;
-    background: #1a1814;
-    border-bottom: 1px solid #8b6c3e;
-    color: #c8bfa8;
-    font-family: Georgia, serif;
+    padding: 8px 12px;
+    background: #e8e4dc;
+    border-bottom: 2px solid #111;
+    color: #111;
+    font-family: Georgia, "Times New Roman", Times, serif;
     font-size: 13px;
   }
   .pdf-preview-toolbar p { margin: 0; flex: 1 1 240px; }
   .pdf-preview-toolbar button {
     cursor: pointer;
-    border: 1px solid #c9963a;
-    background: transparent;
-    color: #f0ead8;
+    border: 1px solid #111;
+    background: #fff;
+    color: #111;
     padding: 6px 14px;
     font-size: 13px;
-    letter-spacing: 0.04em;
+    font-family: Georgia, "Times New Roman", Times, serif;
   }
-  .pdf-preview-toolbar button:hover { background: rgba(201,150,58,0.15); }
-  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pdf-preview-toolbar button:hover { background: #f3f0ea; }
+  .pdf-preview-toolbar button:disabled { opacity: 0.5; cursor: wait; }
   @media print {
     .pdf-preview-toolbar { display: none !important; }
   }
 </style>
 <div class="pdf-preview-toolbar">
-  <p>Native PDF export is unavailable. Print this page and choose Save as PDF.</p>
-  <button type="button" onclick="window.print()">Print / Save as PDF</button>
+  <p id="pdf-print-status">Print opens the system print dialog, or your browser if needed. This bar is not part of the sheet.</p>
+  <button type="button" id="pdf-print-btn" data-print-url="{$printUrl}" data-print-key="{$keyJs}" data-csrf="{$token}">Print / Save as PDF</button>
   <button type="button" onclick="history.back()">Back</button>
 </div>
+<script>
+(function () {
+  var btn = document.getElementById('pdf-print-btn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var status = document.getElementById('pdf-print-status');
+    btn.disabled = true;
+    if (status) status.textContent = 'Opening print…';
+    fetch(btn.getAttribute('data-print-url'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': btn.getAttribute('data-csrf') || '',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ key: btn.getAttribute('data-print-key') })
+    }).then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+      .then(function (result) {
+        if (status) status.textContent = (result.data && result.data.message) ? result.data.message : (result.ok ? 'Print started.' : 'Print failed.');
+      })
+      .catch(function () {
+        if (status) status.textContent = 'Print failed.';
+      })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
 HTML;
 
         if (preg_match('/<body[^>]*>/i', $html)) {

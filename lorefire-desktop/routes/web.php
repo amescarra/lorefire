@@ -184,6 +184,8 @@ Route::get('pdf-export/status', [PdfExportController::class, 'status'])
     ->name('pdf-export.status');
 Route::get('pdf-export/preview', [PdfExportController::class, 'preview'])
     ->name('pdf-export.preview');
+Route::post('pdf-export/print', [PdfExportController::class, 'print'])
+    ->name('pdf-export.print');
 
 // Oracle
 Route::get('oracle', [OracleController::class, 'index'])->name('oracle.index');

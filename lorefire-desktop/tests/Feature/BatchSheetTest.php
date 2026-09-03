@@ -212,6 +212,7 @@ class BatchSheetTest extends TestCase
         ])->render();
 
         $this->assertStringNotContainsString('Memorized Spells', $html);
+        $this->assertStringNotContainsString('box-title">Spells', $html);
     }
 
     public function test_batch_sheet_renders_multiple_characters_on_separate_pages(): void
@@ -229,5 +230,28 @@ class BatchSheetTest extends TestCase
         }
         // Three .sheet divs expected
         $this->assertSame(3, substr_count($html, 'class="sheet"'));
+    }
+
+    public function test_batch_sheet_uses_traditional_letter_form_layout(): void
+    {
+        $character = Character::factory()->create([
+            'name' => 'Elanor',
+            'class' => 'Mage',
+            'class_levels' => [['class' => 'Mage', 'level' => 3]],
+        ]);
+
+        $html = view('pdf.batch-sheets', [
+            'characters' => collect([$character->load(['spells', 'inventoryItems', 'features', 'conditions', 'campaign'])]),
+            'baseUrl'    => 'http://localhost',
+        ])->render();
+
+        $this->assertStringContainsString('Character Record Sheet', $html);
+        $this->assertStringContainsString('size: letter', $html);
+        $this->assertStringContainsString('#fffef8', $html);
+        $this->assertStringContainsString('Ability Scores', $html);
+        $this->assertStringContainsString('THAC0', $html);
+        $this->assertStringNotContainsString('#0e0c0a', $html);
+        $this->assertStringNotContainsString('Cinzel', $html);
+        $this->assertStringNotContainsString('#c9963a', $html);
     }
 }
