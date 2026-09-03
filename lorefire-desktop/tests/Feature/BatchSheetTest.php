@@ -165,7 +165,7 @@ class BatchSheetTest extends TestCase
 
         $this->assertStringContainsString('Aelindra', $html);
         $this->assertStringContainsString('Elf', $html);
-        $this->assertStringContainsString('Mage', $html);
+        $this->assertStringContainsString('Wiz 5', $html);
     }
 
     public function test_batch_sheet_blade_renders_hp_as_fraction(): void
