@@ -118,7 +118,7 @@ class Character extends Model
     }
 
     /**
-     * @return array<int, array{class: string, level: int}>
+     * @return array<int, array{class: string, level: int, xp?: int}>
      */
     public function classEntries(): array
     {
@@ -127,6 +127,20 @@ class Character extends Model
             (string) $this->class,
             (int) $this->level,
             (string) ($this->class_path ?? 'single'),
+        );
+    }
+
+    /**
+     * Class entries with display-time XP backfill (does not persist).
+     *
+     * @return array<int, array{class: string, level: int, xp?: int}>
+     */
+    public function displayClassEntries(): array
+    {
+        return Adnd2e::backfillClassLevelsXp(
+            $this->classEntries(),
+            (string) ($this->class_path ?? 'single'),
+            $this->experience_points,
         );
     }
 

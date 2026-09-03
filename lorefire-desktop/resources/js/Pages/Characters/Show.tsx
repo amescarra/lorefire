@@ -11,7 +11,7 @@ import { Campaign, Character, InventoryItem, InventorySnapshot } from '@/types'
 import { ConditionManager } from '@/Components/ConditionManager'
 import { SpellsTab } from '@/Components/SpellsTab'
 import {
-  SAVE_CATEGORIES, anyCaster, formatSigned, hasPsionicist, normalizeClassLevels, primaryAdjustment, vitalityState,
+  SAVE_CATEGORIES, anyCaster, backfillClassLevelsXp, classAbbreviation, formatClassLevelsLine, formatSigned, formatXpAmount, hasPsionicist, normalizeClassLevels, primaryAdjustment, vitalityState,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -100,7 +100,13 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
     { label: 'CHA', key: 'charisma' as const },
   ]
 
-  const classEntries = normalizeClassLevels(character.class_levels, character.class, character.level, character.class_path ?? 'single')
+  const classPath = character.class_path ?? 'single'
+  const classEntries = backfillClassLevelsXp(
+    normalizeClassLevels(character.class_levels, character.class, character.level, classPath),
+    classPath,
+    character.experience_points ?? 0,
+  )
+  const classLevelsLine = formatClassLevelsLine(classEntries, classPath)
   const hasMemorization = anyCaster(classEntries)
     || (character.memorization && Object.keys(character.memorization).length > 0)
 
@@ -158,7 +164,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-heading text-2xl text-[var(--color-text-white)] tracking-widest uppercase">{character.name}</h1>
-              <Badge variant="rune">Level {character.level}</Badge>
+              <Badge variant="rune">{classLevelsLine || `Level ${character.level}`}</Badge>
               {character.class_path && character.class_path !== 'single' && (
                 <Badge variant="muted">{character.class_path === 'dual' ? 'Dual-class' : 'Multi-class'}</Badge>
               )}
@@ -167,6 +173,19 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
               {character.race}{character.subrace ? ` (${character.subrace})` : ''} · {character.class}{character.subclass ? ` — ${character.subclass}` : ''}
               {character.background ? ` · ${character.background}` : ''}
             </p>
+            <ul className="mt-1.5 text-xs text-[var(--color-text-dim)] flex flex-col gap-0.5">
+              {classEntries.map((entry, i) => (
+                <li key={`${entry.class}-${i}`} className="font-mono">
+                  {classAbbreviation(entry.class)} {entry.level}
+                  <span className="opacity-70">
+                    {' · '}
+                    {entry.xp !== undefined && entry.xp !== null
+                      ? `${formatXpAmount(entry.xp)} XP`
+                      : '— XP'}
+                  </span>
+                </li>
+              ))}
+            </ul>
             <div className="mt-2">
               <ConditionManager characterId={character.id} conditions={character.conditions ?? []} />
             </div>

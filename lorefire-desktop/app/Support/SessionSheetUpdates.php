@@ -320,13 +320,7 @@ class SessionSheetUpdates
 
     protected static function setXp(Character $character, int $value): bool
     {
-        $next = max(0, $value);
-        if ($next === (int) $character->experience_points) {
-            return false;
-        }
-        $character->update(['experience_points' => $next]);
-
-        return true;
+        return self::applyExperiencePoints($character, max(0, $value));
     }
 
     protected static function deltaXp(Character $character, int $delta): bool
@@ -334,11 +328,33 @@ class SessionSheetUpdates
         if ($delta === 0) {
             return false;
         }
-        $next = max(0, (int) $character->experience_points + $delta);
-        if ($next === (int) $character->experience_points) {
+
+        return self::applyExperiencePoints($character, max(0, (int) $character->experience_points + $delta));
+    }
+
+    /**
+     * Write the sheet total. Single/dual also sync the current class_levels xp
+     * entry. Multi-class leaves per-class xp alone (no invented split).
+     */
+    protected static function applyExperiencePoints(Character $character, int $next): bool
+    {
+        $next = max(0, $next);
+        $path = (string) ($character->class_path ?? 'single');
+        $entries = $character->classEntries();
+
+        if ($path !== 'multi' && $entries !== []) {
+            $index = $path === 'dual' ? array_key_last($entries) : array_key_first($entries);
+            $entries[$index]['xp'] = $next;
+        }
+
+        $payload = [
+            'experience_points' => $next,
+            'class_levels' => $entries,
+        ];
+        if ($next === (int) $character->experience_points && $entries === ($character->class_levels ?? [])) {
             return false;
         }
-        $character->update(['experience_points' => $next]);
+        $character->update($payload);
 
         return true;
     }

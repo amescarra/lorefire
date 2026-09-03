@@ -5,6 +5,7 @@ import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
 import { HpBar } from '@/Components/HpBar'
 import { Campaign, Character } from '@/types'
+import { ClassSummary, characterClassDisplay } from '@/Components/ClassSummary'
 import { formatSigned, primaryAdjustment } from '@/lib/adnd2e'
 
 interface Props {
@@ -89,6 +90,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
 
   const mod = (ability: string, score: number) =>
     formatSigned(primaryAdjustment(ability, score, character.exceptional_strength, character.class))
+  const { xpLine } = characterClassDisplay(character)
 
   return (
     <Link href={href} className="block group">
@@ -113,7 +115,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="font-heading text-base text-[var(--color-text-white)] tracking-wide">{character.name}</span>
-            <Badge variant="rune">Lv {character.level}</Badge>
+            <ClassSummary character={character} showXp={false} />
             {standalone && character.campaign && (
               <Badge variant="muted">{character.campaign.name}</Badge>
             )}
@@ -125,6 +127,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
             {character.race} {character.class}
             {character.subclass ? ` — ${character.subclass}` : ''}
             {character.player_name ? ` · ${character.player_name}` : ''}
+            {xpLine ? ` · ${xpLine}` : ''}
           </p>
           <HpBar current={character.current_hp} max={character.max_hp} className="mt-2 max-w-[180px]" />
         </div>

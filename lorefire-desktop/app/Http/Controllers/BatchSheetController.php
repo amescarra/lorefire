@@ -29,7 +29,23 @@ class BatchSheetController extends Controller
             $query->where('campaign_id', $campaignId);
         }
 
-        $characters = $query->get(['id', 'name', 'race', 'class', 'level', 'campaign_id', 'player_name', 'current_hp', 'max_hp', 'armor_class', 'thac0', 'experience_points']);
+        $characters = $query->get([
+            'id',
+            'name',
+            'race',
+            'class',
+            'subclass',
+            'level',
+            'class_path',
+            'class_levels',
+            'campaign_id',
+            'player_name',
+            'current_hp',
+            'max_hp',
+            'armor_class',
+            'thac0',
+            'experience_points',
+        ]);
 
         $campaigns = Campaign::orderBy('name')->get(['id', 'name']);
 

@@ -121,4 +121,35 @@ class KitFieldUiTest extends TestCase
             Adnd2e::CLASSES
         );
     }
+
+    public function test_class_path_fields_and_lists_show_per_class_xp(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $fields = file_get_contents($root.'/resources/js/Components/ClassPathFields.tsx');
+        $this->assertIsString($fields);
+        $this->assertStringContainsString("label={path === 'dual' ? (i === 0 ? 'Original XP' : 'Current XP') : 'XP'}", $fields);
+
+        $ts = file_get_contents($root.'/resources/js/lib/adnd2e.ts');
+        $this->assertIsString($ts);
+        $this->assertStringContainsString("Fighter: 'FR'", $ts);
+        $this->assertStringContainsString("Mage: 'Wiz'", $ts);
+        $this->assertStringContainsString('export function formatClassLevelsLine', $ts);
+        $this->assertStringContainsString('export function formatClassXpLine', $ts);
+
+        $summary = file_get_contents($root.'/resources/js/Components/ClassSummary.tsx');
+        $this->assertIsString($summary);
+        $this->assertStringContainsString('formatClassLevelsLine', $summary);
+
+        foreach (['Index.tsx'] as $page) {
+            $tsx = file_get_contents($root.'/resources/js/Pages/Characters/'.$page);
+            $this->assertIsString($tsx);
+            $this->assertStringContainsString('ClassSummary', $tsx);
+            $this->assertStringNotContainsString('Lv {character.level}', $tsx);
+        }
+
+        $batch = file_get_contents($root.'/resources/js/Pages/BatchSheets/Index.tsx');
+        $this->assertIsString($batch);
+        $this->assertStringContainsString('ClassSummary', $batch);
+        $this->assertStringNotContainsString('Lv {character.level}', $batch);
+    }
 }

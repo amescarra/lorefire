@@ -4,6 +4,19 @@ export const RACES = ['Human', 'Dwarf', 'Elf', 'Gnome', 'Half-Elf', 'Halfling', 
 
 export const CLASSES = ['Fighter', 'Paladin', 'Ranger', 'Mage', 'Cleric', 'Druid', 'Thief', 'Bard', 'Psionicist'] as const
 
+/** Compact class labels. Mage is mixed-case "Wiz" to match the sheet request. */
+export const CLASS_ABBREVIATIONS: Record<string, string> = {
+  Fighter: 'FR',
+  Paladin: 'PAL',
+  Ranger: 'RAN',
+  Mage: 'Wiz',
+  Cleric: 'CLR',
+  Druid: 'DRU',
+  Thief: 'TH',
+  Bard: 'BRD',
+  Psionicist: 'PSI',
+}
+
 /** Discipline name labels for the typed-power datalist only. Not kits. */
 export const PSIONIC_DISCIPLINES = [
   'Clairsentience',
@@ -445,7 +458,7 @@ export function vitalityState(currentHp: number): 'ok' | 'unconscious' | 'dying'
   return 'ok'
 }
 
-export type ClassEntry = { class: string; level: number }
+export type ClassEntry = { class: string; level: number; xp?: number | null }
 export type ClassPath = 'single' | 'multi' | 'dual'
 
 export function rewriteLegacyClass(name: string): string {
@@ -466,7 +479,17 @@ export function normalizeClassLevels(
 ): ClassEntry[] {
   const fromJson = (classLevels ?? [])
     .filter(e => e && e.class)
-    .map(e => ({ class: rewriteLegacyClass(e.class), level: Math.max(1, Math.min(20, Number(e.level) || level)) }))
+    .map(e => {
+      const entry: ClassEntry = {
+        class: rewriteLegacyClass(e.class),
+        level: Math.max(1, Math.min(20, Number(e.level) || level)),
+      }
+      if (e.xp !== undefined && e.xp !== null && e.xp !== ('' as unknown as number)) {
+        const xp = Number(e.xp)
+        if (Number.isFinite(xp) && xp >= 0) entry.xp = xp
+      }
+      return entry
+    })
   let entries = fromJson
   if (entries.length === 0) {
     if (characterClass.includes('/')) {
@@ -490,6 +513,86 @@ export function displayLevel(entries: ClassEntry[], path: ClassPath = 'single'):
   if (entries.length === 0) return 1
   if (path === 'dual') return entries[entries.length - 1].level
   return Math.max(...entries.map(e => e.level))
+}
+
+export function classAbbreviation(className: string): string {
+  const name = className.trim()
+  if (!name) return '?'
+  if (CLASS_ABBREVIATIONS[name]) return CLASS_ABBREVIATIONS[name]
+  const normalized = rewriteLegacyClass(name)
+  if (CLASS_ABBREVIATIONS[normalized]) return CLASS_ABBREVIATIONS[normalized]
+  if ((SPECIALIST_SCHOOLS as readonly string[]).includes(name) || (SPECIALIST_SCHOOLS as readonly string[]).includes(normalized)) {
+    return 'Wiz'
+  }
+  const clean = name.replace(/[^A-Za-z]/g, '')
+  return clean ? clean.slice(0, 3).toUpperCase() : '?'
+}
+
+/** Compact class/level line: "FR 11 / Wiz 12", "PSI 9 → FR 10", "CLR 10". */
+export function formatClassLevelsLine(entries: ClassEntry[], path: ClassPath = 'single'): string {
+  const parts = entries
+    .filter(e => e.class)
+    .map(e => `${classAbbreviation(e.class)} ${e.level}`)
+  if (parts.length === 0) return ''
+  if (path === 'dual' && parts.length >= 2) return parts.join(' → ')
+  return parts.join(' / ')
+}
+
+export function formatXpAmount(xp: number, compact = false): string {
+  if (compact && xp >= 10000 && xp % 1000 === 0) return `${xp / 1000}k`
+  return xp.toLocaleString()
+}
+
+export function formatClassXpLine(
+  entries: ClassEntry[],
+  _path: ClassPath = 'single',
+  compact = true,
+  omitMissing = false,
+): string {
+  const parts: string[] = []
+  for (const entry of entries) {
+    if (!entry.class) continue
+    const abbr = classAbbreviation(entry.class)
+    if (entry.xp !== undefined && entry.xp !== null) {
+      parts.push(`${abbr} ${formatXpAmount(entry.xp, compact)}`)
+    } else if (!omitMissing) {
+      parts.push(`${abbr} —`)
+    }
+  }
+  return parts.join(' · ')
+}
+
+export function derivedExperiencePoints(entries: ClassEntry[], legacyXp = 0): number {
+  let sum = 0
+  let any = false
+  for (const entry of entries) {
+    if (entry.xp !== undefined && entry.xp !== null) {
+      sum += Math.max(0, entry.xp)
+      any = true
+    }
+  }
+  return any ? sum : Math.max(0, legacyXp)
+}
+
+/**
+ * Copy a legacy experience_points total into class_levels when per-class xp
+ * is missing. Does not invent splits: single → only entry; dual → last class;
+ * multi → leave empty.
+ */
+export function backfillClassLevelsXp(
+  entries: ClassEntry[],
+  path: ClassPath | string | null | undefined,
+  legacyXp: number,
+): ClassEntry[] {
+  const hasXp = entries.some(e => e.xp !== undefined && e.xp !== null)
+  const legacy = Math.max(0, Number(legacyXp) || 0)
+  if (hasXp || legacy <= 0 || entries.length === 0) return entries
+  const resolved: ClassPath = path === 'multi' || path === 'dual' ? path : 'single'
+  if (resolved === 'multi') return entries
+  const next = entries.map(e => ({ ...e }))
+  const index = resolved === 'dual' ? next.length - 1 : 0
+  next[index] = { ...next[index], xp: legacy }
+  return next
 }
 
 /** House dual-class: begin a new class only after the original is 6th. */

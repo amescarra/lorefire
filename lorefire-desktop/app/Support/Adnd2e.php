@@ -36,6 +36,22 @@ class Adnd2e
         'Psionicist',
     ];
 
+    /**
+     * Compact class labels for list cards, show, and printable sheets.
+     * Mage uses mixed-case "Wiz" (user-requested); others are 2–3 letter codes.
+     */
+    public const CLASS_ABBREVIATIONS = [
+        'Fighter' => 'FR',
+        'Paladin' => 'PAL',
+        'Ranger' => 'RAN',
+        'Mage' => 'Wiz',
+        'Cleric' => 'CLR',
+        'Druid' => 'DRU',
+        'Thief' => 'TH',
+        'Bard' => 'BRD',
+        'Psionicist' => 'PSI',
+    ];
+
     /** House dual-class: original class must be this level before a new class may begin. */
     public const HOUSE_DUAL_MIN_ORIGINAL_LEVEL = 6;
 
@@ -287,7 +303,7 @@ class Adnd2e
 
     /**
      * @param  array<int, mixed>|null  $classLevels
-     * @return array<int, array{class: string, level: int}>
+     * @return array<int, array{class: string, level: int, xp?: int}>
      */
     public static function normalizeClassLevels(?array $classLevels, string $class, int $level, string $path = 'single'): array
     {
@@ -302,10 +318,17 @@ class Adnd2e
                     continue;
                 }
                 $rewritten = self::rewriteLegacyClass($name);
-                $entries[] = [
+                $normalized = [
                     'class' => $rewritten['class'],
                     'level' => max(1, min(20, (int) ($entry['level'] ?? $level))),
                 ];
+                if (array_key_exists('xp', $entry) && $entry['xp'] !== null && $entry['xp'] !== '') {
+                    $xp = (int) $entry['xp'];
+                    if ($xp >= 0) {
+                        $normalized['xp'] = $xp;
+                    }
+                }
+                $entries[] = $normalized;
             }
         }
 
@@ -358,6 +381,143 @@ class Adnd2e
         }
 
         return max(array_map(fn (array $e) => (int) $e['level'], $entries));
+    }
+
+    public static function classAbbreviation(string $class): string
+    {
+        $name = trim($class);
+        if ($name === '') {
+            return '?';
+        }
+        if (isset(self::CLASS_ABBREVIATIONS[$name])) {
+            return self::CLASS_ABBREVIATIONS[$name];
+        }
+
+        $rewritten = self::rewriteLegacyClass($name);
+        $normalized = (string) ($rewritten['class'] ?? $name);
+        if (isset(self::CLASS_ABBREVIATIONS[$normalized])) {
+            return self::CLASS_ABBREVIATIONS[$normalized];
+        }
+        if (in_array($name, self::SPECIALIST_SCHOOLS, true) || in_array($normalized, self::SPECIALIST_SCHOOLS, true)) {
+            return 'Wiz';
+        }
+
+        $clean = preg_replace('/[^A-Za-z]/', '', $name) ?? '';
+        $abbr = strtoupper(substr($clean, 0, 3));
+
+        return $abbr !== '' ? $abbr : '?';
+    }
+
+    /**
+     * Compact class/level line: "FR 11 / Wiz 12", "PSI 9 → FR 10", "CLR 10".
+     *
+     * @param  array<int, array{class: string, level: int, xp?: int}>  $entries
+     */
+    public static function formatClassLevelsLine(array $entries, string $path = 'single'): string
+    {
+        $parts = [];
+        foreach ($entries as $entry) {
+            $name = trim((string) ($entry['class'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $parts[] = self::classAbbreviation($name).' '.(int) ($entry['level'] ?? 1);
+        }
+        if ($parts === []) {
+            return '';
+        }
+        if ($path === 'dual' && count($parts) >= 2) {
+            return implode(' → ', $parts);
+        }
+
+        return implode(' / ', $parts);
+    }
+
+    public static function formatXpAmount(int $xp, bool $compact = false): string
+    {
+        if ($compact && $xp >= 10000 && $xp % 1000 === 0) {
+            return ((int) ($xp / 1000)).'k';
+        }
+
+        return number_format($xp);
+    }
+
+    /**
+     * Per-class XP line. Missing xp is "—" unless $omitMissing is true.
+     *
+     * @param  array<int, array{class: string, level: int, xp?: int|null}>  $entries
+     */
+    public static function formatClassXpLine(array $entries, string $path = 'single', bool $compact = true, bool $omitMissing = false): string
+    {
+        $parts = [];
+        foreach ($entries as $entry) {
+            $name = trim((string) ($entry['class'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $abbr = self::classAbbreviation($name);
+            if (array_key_exists('xp', $entry) && $entry['xp'] !== null && $entry['xp'] !== '') {
+                $parts[] = $abbr.' '.self::formatXpAmount((int) $entry['xp'], $compact);
+            } elseif (! $omitMissing) {
+                $parts[] = $abbr.' —';
+            }
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Sum per-class xp when any entry has it; otherwise the legacy total.
+     *
+     * @param  array<int, array{class: string, level: int, xp?: int}>  $entries
+     */
+    public static function derivedExperiencePoints(array $entries, mixed $legacyXp = 0): int
+    {
+        $sum = 0;
+        $any = false;
+        foreach ($entries as $entry) {
+            if (array_key_exists('xp', $entry) && $entry['xp'] !== null && $entry['xp'] !== '') {
+                $sum += max(0, (int) $entry['xp']);
+                $any = true;
+            }
+        }
+
+        return $any ? $sum : max(0, (int) $legacyXp);
+    }
+
+    /**
+     * Copy a legacy experience_points total into class_levels when per-class
+     * xp is missing. Does not invent splits:
+     * - single: copy onto the only entry
+     * - dual: copy onto the current (last) class
+     * - multi: leave per-class xp empty
+     *
+     * @param  array<int, array{class: string, level: int, xp?: int}>  $entries
+     * @return array<int, array{class: string, level: int, xp?: int}>
+     */
+    public static function backfillClassLevelsXp(array $entries, ?string $path, mixed $legacyXp): array
+    {
+        $hasXp = false;
+        foreach ($entries as $entry) {
+            if (array_key_exists('xp', $entry) && $entry['xp'] !== null && $entry['xp'] !== '') {
+                $hasXp = true;
+                break;
+            }
+        }
+        $legacy = max(0, (int) $legacyXp);
+        if ($hasXp || $legacy <= 0 || $entries === []) {
+            return $entries;
+        }
+
+        $path = in_array($path, ['single', 'multi', 'dual'], true) ? $path : 'single';
+        if ($path === 'multi') {
+            return $entries;
+        }
+
+        $index = $path === 'dual' ? array_key_last($entries) : array_key_first($entries);
+        $entries[$index]['xp'] = $legacy;
+
+        return $entries;
     }
 
     /**

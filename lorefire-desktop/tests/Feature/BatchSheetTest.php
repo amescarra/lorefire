@@ -303,11 +303,91 @@ class BatchSheetTest extends TestCase
         $this->assertStringContainsString('data-mod="intelligence">'.$intMod, $html);
         $this->assertStringNotContainsString('data-mod="dexterity">+2', $html);
         $this->assertStringContainsString('Dual-class', $html);
-        $this->assertStringContainsString('Psionicist 9', $html);
-        $this->assertStringContainsString('Fighter 10', $html);
+        $this->assertStringContainsString('PSI 9', $html);
+        $this->assertStringContainsString('FR 10', $html);
         $this->assertStringContainsString('data-thac0>'.$thac0, $html);
         $this->assertStringContainsString('data-save="paralyzation">'.($saves['paralyzation'] ?? 20), $html);
         $this->assertStringContainsString('PSP 40 / 55', $html);
         $this->assertStringContainsString('Id Insinuation', $html);
+    }
+
+    public function test_batch_sheets_index_includes_class_levels_with_xp(): void
+    {
+        Character::factory()->create([
+            'name' => 'Ailduin',
+            'class' => 'Fighter/Mage',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 11, 'xp' => 500000],
+                ['class' => 'Mage', 'level' => 12, 'xp' => 750000],
+            ],
+            'level' => 12,
+            'experience_points' => 1250000,
+        ]);
+
+        $this->get(route('batch-sheets.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('BatchSheets/Index')
+                ->has('characters', 1)
+                ->where('characters.0.name', 'Ailduin')
+                ->where('characters.0.class_path', 'multi')
+                ->where('characters.0.class_levels.0.class', 'Fighter')
+                ->where('characters.0.class_levels.0.level', 11)
+                ->where('characters.0.class_levels.0.xp', 500000)
+                ->where('characters.0.class_levels.1.class', 'Mage')
+                ->where('characters.0.class_levels.1.level', 12)
+                ->where('characters.0.class_levels.1.xp', 750000)
+            );
+    }
+
+    public function test_characters_index_includes_class_levels(): void
+    {
+        Character::factory()->create([
+            'name' => 'Frizian',
+            'class' => 'Fighter/Thief',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 11],
+                ['class' => 'Thief', 'level' => 12],
+            ],
+            'level' => 12,
+        ]);
+
+        $this->get(route('characters.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Characters/Index')
+                ->has('characters', 1)
+                ->where('characters.0.class_path', 'multi')
+                ->where('characters.0.class_levels.0.level', 11)
+                ->where('characters.0.class_levels.1.class', 'Thief')
+                ->where('characters.0.class_levels.1.level', 12)
+            );
+    }
+
+    public function test_batch_sheet_renders_abbreviations_and_per_class_xp(): void
+    {
+        $character = Character::factory()->create([
+            'name' => 'Ailduin',
+            'class' => 'Fighter/Mage',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 11, 'xp' => 500000],
+                ['class' => 'Mage', 'level' => 12, 'xp' => 750000],
+            ],
+            'level' => 12,
+            'experience_points' => 1250000,
+        ]);
+
+        $html = view('pdf.batch-sheets', [
+            'characters' => collect([$character->load(['spells', 'inventoryItems', 'features', 'conditions', 'campaign'])]),
+            'baseUrl' => 'http://localhost',
+        ])->render();
+
+        $this->assertStringContainsString('FR 11 / Wiz 12', $html);
+        $this->assertStringContainsString('FR 500,000', $html);
+        $this->assertStringContainsString('Wiz 750,000', $html);
+        $this->assertStringNotContainsString('Lv 12', $html);
     }
 }

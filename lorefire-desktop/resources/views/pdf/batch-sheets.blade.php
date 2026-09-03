@@ -177,15 +177,18 @@
 
 @foreach($characters as $character)
 @php
-  $classEntries = $character->classEntries();
   $classPath = (string) ($character->class_path ?? 'single');
-  $classDisplay = collect($classEntries)
-      ->map(fn (array $e) => $e['class'].' '.$e['level'])
-      ->join($classPath === 'dual' ? ' → ' : ' / ');
+  $classEntries = $character->displayClassEntries();
+  $classDisplay = \App\Support\Adnd2e::formatClassLevelsLine($classEntries, $classPath);
   if ($classPath === 'dual') {
       $classDisplay = 'Dual-class '.$classDisplay;
   } elseif ($classPath === 'multi') {
       $classDisplay = 'Multi-class '.$classDisplay;
+  }
+  $xpDisplay = \App\Support\Adnd2e::formatClassXpLine($classEntries, $classPath, false, false);
+  $anyClassXp = collect($classEntries)->contains(fn (array $e) => array_key_exists('xp', $e) && $e['xp'] !== null && $e['xp'] !== '');
+  if (! $anyClassXp && (int) $character->experience_points > 0 && $classPath === 'multi') {
+      $xpDisplay = ($xpDisplay !== '' ? $xpDisplay.' · ' : '').number_format((int) $character->experience_points).' unsplit';
   }
 
   $adj = fn (string $ability) => \App\Support\Adnd2e::formatSigned($character->getModifier($ability));
@@ -246,7 +249,7 @@
     </div>
     <div class="field">
       <span class="field-label">Experience Points</span>
-      <span class="field-value">{{ number_format($character->experience_points) }}</span>
+      <span class="field-value">{{ $xpDisplay !== '' ? $xpDisplay : '' }}</span>
     </div>
   </div>
   <div class="fields wide">

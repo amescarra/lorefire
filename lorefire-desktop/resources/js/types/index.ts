@@ -30,7 +30,7 @@ export interface Character {
   class: string
   subclass: string | null
   class_path: 'single' | 'multi' | 'dual'
-  class_levels: Array<{ class: string; level: number }> | null
+  class_levels: Array<{ class: string; level: number; xp?: number | null }> | null
   level: number
   background: string | null
   alignment: string | null

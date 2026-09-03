@@ -5,6 +5,7 @@ import { Button } from '@/Components/Button'
 import { Badge } from '@/Components/Badge'
 import { HpBar } from '@/Components/HpBar'
 import { pdfExportButtonLabel, usePdfExport } from '@/hooks/usePdfExport'
+import { ClassSummary, characterClassDisplay } from '@/Components/ClassSummary'
 import { Campaign, Character } from '@/types'
 
 interface Props {
@@ -193,7 +194,7 @@ function CharacterRow({
             <span className="font-heading text-base text-[var(--color-text-white)] tracking-wide">
               {character.name}
             </span>
-            <Badge variant="rune">Lv {character.level}</Badge>
+            <ClassSummary character={character} showXp={false} />
             {character.campaign && (
               <Badge variant="muted">{character.campaign.name}</Badge>
             )}
@@ -214,9 +215,9 @@ function CharacterRow({
             <div className="font-heading text-sm text-[var(--color-rune-bright)]">{character.thac0}</div>
             <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">THAC0</div>
           </div>
-          <div>
-            <div className="font-heading text-sm text-[var(--color-rune-bright)]">
-              {character.experience_points.toLocaleString()}
+          <div className="text-right max-w-[140px]">
+            <div className="font-heading text-sm text-[var(--color-rune-bright)] leading-tight">
+              {characterClassDisplay(character).xpLine || '—'}
             </div>
             <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-dim)]">XP</div>
           </div>

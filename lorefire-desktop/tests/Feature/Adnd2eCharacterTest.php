@@ -427,4 +427,83 @@ class Adnd2eCharacterTest extends TestCase
         $this->delete(route('characters.conditions.destroy', [$character, $condition]))->assertRedirect();
         $this->assertDatabaseMissing('character_conditions', ['id' => $condition->id]);
     }
+
+    public function test_update_accepts_per_class_xp_and_derives_total(): void
+    {
+        $campaign = Campaign::factory()->create();
+        $character = Character::factory()->create([
+            'campaign_id' => $campaign->id,
+            'name' => 'Ailduin',
+            'race' => 'Elf',
+            'class' => 'Fighter/Mage',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 11],
+                ['class' => 'Mage', 'level' => 12],
+            ],
+            'level' => 12,
+            'experience_points' => 0,
+        ]);
+
+        $this->put(route('campaigns.characters.update', [$campaign, $character]), [
+            'name' => $character->name,
+            'race' => $character->race,
+            'class' => 'Fighter',
+            'class_path' => 'multi',
+            'class_levels' => [
+                ['class' => 'Fighter', 'level' => 11, 'xp' => 500000],
+                ['class' => 'Mage', 'level' => 12, 'xp' => 750000],
+            ],
+            'level' => 12,
+            'strength' => $character->strength,
+            'dexterity' => $character->dexterity,
+            'constitution' => $character->constitution,
+            'intelligence' => $character->intelligence,
+            'wisdom' => $character->wisdom,
+            'charisma' => $character->charisma,
+            'max_hp' => $character->max_hp,
+            'current_hp' => $character->current_hp,
+            'armor_class' => $character->armor_class,
+            'speed' => $character->speed,
+            'experience_points' => 0,
+            'thac0' => $character->thac0,
+            'copper' => (int) ($character->copper ?? 0),
+            'silver' => (int) ($character->silver ?? 0),
+            'electrum' => (int) ($character->electrum ?? 0),
+            'gold' => (int) ($character->gold ?? 0),
+            'platinum' => (int) ($character->platinum ?? 0),
+        ])->assertRedirect();
+
+        $character->refresh();
+        $this->assertSame(500000, $character->class_levels[0]['xp']);
+        $this->assertSame(750000, $character->class_levels[1]['xp']);
+        $this->assertSame(1250000, (int) $character->experience_points);
+    }
+
+    public function test_create_single_class_copies_experience_points_onto_class_levels(): void
+    {
+        $campaign = Campaign::factory()->create();
+
+        $this->post(route('campaigns.characters.store', $campaign), [
+            'name' => 'Mira',
+            'race' => 'Human',
+            'class' => 'Cleric',
+            'class_path' => 'single',
+            'class_levels' => [
+                ['class' => 'Cleric', 'level' => 10],
+            ],
+            'level' => 10,
+            'experience_points' => 450000,
+            'strength' => 12,
+            'dexterity' => 10,
+            'constitution' => 14,
+            'intelligence' => 10,
+            'wisdom' => 16,
+            'charisma' => 12,
+        ])->assertRedirect();
+
+        $character = Character::query()->where('name', 'Mira')->firstOrFail();
+        $this->assertSame(450000, $character->class_levels[0]['xp']);
+        $this->assertSame(450000, (int) $character->experience_points);
+    }
 }
