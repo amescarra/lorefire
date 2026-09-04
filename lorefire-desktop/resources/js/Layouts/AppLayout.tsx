@@ -61,6 +61,12 @@ const navItems: NavItem[] = [
     icon: <SidebarIcon d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />,
   },
   {
+    label: 'Batch Sheets',
+    href: '/batch-sheets',
+    match: '/batch-sheets',
+    icon: <SidebarIcon d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" />,
+  },
+  {
     label: 'Oracle',
     href: '/oracle',
     match: '/oracle',

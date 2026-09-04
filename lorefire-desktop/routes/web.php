@@ -18,6 +18,7 @@ use App\Http\Controllers\NpcController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SceneImageController;
 use App\Http\Controllers\SpeakerProfileController;
+use App\Http\Controllers\BatchSheetController;
 use App\Http\Controllers\StandaloneCharacterController;
 use App\Http\Controllers\StorageFileController;
 use App\Http\Controllers\ChunkedAudioController;
@@ -170,6 +171,10 @@ Route::prefix('sessions/{session}')->name('sessions.')->group(function () {
     Route::delete('speakers',              [SpeakerProfileController::class, 'reset'])->name('speakers.reset');
 });
 
+// Batch character sheet PDF export
+Route::get('batch-sheets', [BatchSheetController::class, 'index'])->name('batch-sheets.index');
+Route::post('batch-sheets/export', [BatchSheetController::class, 'export'])->name('batch-sheets.export');
+
 // PDF export
 Route::post('campaigns/{campaign}/export-pdf', [PdfExportController::class, 'campaign'])
     ->name('campaigns.export-pdf');
@@ -177,6 +182,10 @@ Route::post('campaigns/{campaign}/sessions/{session}/export-pdf', [PdfExportCont
     ->name('sessions.export-pdf');
 Route::get('pdf-export/status', [PdfExportController::class, 'status'])
     ->name('pdf-export.status');
+Route::get('pdf-export/preview', [PdfExportController::class, 'preview'])
+    ->name('pdf-export.preview');
+Route::post('pdf-export/print', [PdfExportController::class, 'print'])
+    ->name('pdf-export.print');
 
 // Oracle
 Route::get('oracle', [OracleController::class, 'index'])->name('oracle.index');

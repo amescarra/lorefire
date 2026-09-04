@@ -5,6 +5,7 @@ import { Badge } from '@/Components/Badge'
 import { Button } from '@/Components/Button'
 import { HpBar } from '@/Components/HpBar'
 import { Campaign, Character } from '@/types'
+import { ClassSummary, characterClassDisplay } from '@/Components/ClassSummary'
 import { formatSigned, primaryAdjustment } from '@/lib/adnd2e'
 
 interface Props {
@@ -50,6 +51,14 @@ export default function Index({ campaign, characters, campaigns }: Props) {
                 Back to Campaign
               </Button>
             )}
+            {characters.length > 0 && (
+              <Button variant="ghost" as="a" href={standalone ? '/batch-sheets' : `/batch-sheets?campaign=${campaign!.id}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                </svg>
+                Batch Sheets
+              </Button>
+            )}
             <Button variant="rune" as="a" href={createHref}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 5v14M5 12h14" />
@@ -81,6 +90,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
 
   const mod = (ability: string, score: number) =>
     formatSigned(primaryAdjustment(ability, score, character.exceptional_strength, character.class))
+  const { xpLine } = characterClassDisplay(character)
 
   return (
     <Link href={href} className="block group">
@@ -105,7 +115,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <span className="font-heading text-base text-[var(--color-text-white)] tracking-wide">{character.name}</span>
-            <Badge variant="rune">Lv {character.level}</Badge>
+            <ClassSummary character={character} showXp={false} />
             {standalone && character.campaign && (
               <Badge variant="muted">{character.campaign.name}</Badge>
             )}
@@ -117,6 +127,7 @@ function CharacterRow({ campaign, character }: { campaign: Campaign | null; char
             {character.race} {character.class}
             {character.subclass ? ` — ${character.subclass}` : ''}
             {character.player_name ? ` · ${character.player_name}` : ''}
+            {xpLine ? ` · ${xpLine}` : ''}
           </p>
           <HpBar current={character.current_hp} max={character.max_hp} className="mt-2 max-w-[180px]" />
         </div>

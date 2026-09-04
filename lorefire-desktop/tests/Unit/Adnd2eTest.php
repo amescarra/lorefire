@@ -292,4 +292,94 @@ class Adnd2eTest extends TestCase
         $this->assertNotContains('Bladesinger', $elf);
         $this->assertContains('Archer', $elf);
     }
+
+    public function test_class_abbreviations_cover_all_classes(): void
+    {
+        $expected = [
+            'Fighter' => 'FR',
+            'Paladin' => 'PAL',
+            'Ranger' => 'RAN',
+            'Mage' => 'Wiz',
+            'Cleric' => 'CLR',
+            'Druid' => 'DRU',
+            'Thief' => 'TH',
+            'Bard' => 'BRD',
+            'Psionicist' => 'PSI',
+        ];
+        $this->assertSame($expected, Adnd2e::CLASS_ABBREVIATIONS);
+        foreach (Adnd2e::CLASSES as $class) {
+            $this->assertArrayHasKey($class, Adnd2e::CLASS_ABBREVIATIONS);
+            $this->assertSame($expected[$class], Adnd2e::classAbbreviation($class));
+        }
+        $this->assertSame('Wiz', Adnd2e::classAbbreviation('Illusionist'));
+        $this->assertSame('Wiz', Adnd2e::classAbbreviation('Wizard'));
+        $this->assertSame('TH', Adnd2e::classAbbreviation('Rogue'));
+    }
+
+    public function test_format_class_levels_line_for_multi_dual_and_single(): void
+    {
+        $this->assertSame('FR 11 / Wiz 12', Adnd2e::formatClassLevelsLine([
+            ['class' => 'Fighter', 'level' => 11],
+            ['class' => 'Mage', 'level' => 12],
+        ], 'multi'));
+        $this->assertSame('PSI 9 → FR 10', Adnd2e::formatClassLevelsLine([
+            ['class' => 'Psionicist', 'level' => 9],
+            ['class' => 'Fighter', 'level' => 10],
+        ], 'dual'));
+        $this->assertSame('CLR 10', Adnd2e::formatClassLevelsLine([
+            ['class' => 'Cleric', 'level' => 10],
+        ], 'single'));
+        $this->assertSame('FR 10 / Wiz 13 / CLR 11', Adnd2e::formatClassLevelsLine([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Mage', 'level' => 13],
+            ['class' => 'Cleric', 'level' => 11],
+        ], 'multi'));
+    }
+
+    public function test_normalize_preserves_per_class_xp_when_present(): void
+    {
+        $entries = Adnd2e::normalizeClassLevels([
+            ['class' => 'Fighter', 'level' => 11, 'xp' => 500000],
+            ['class' => 'Mage', 'level' => 12, 'xp' => 750000],
+        ], 'Fighter/Mage', 12, 'multi');
+
+        $this->assertSame(500000, $entries[0]['xp']);
+        $this->assertSame(750000, $entries[1]['xp']);
+        $this->assertArrayNotHasKey('xp', Adnd2e::normalizeClassLevels([
+            ['class' => 'Fighter', 'level' => 5],
+        ], 'Fighter', 5, 'single')[0]);
+        $this->assertSame(1250000, Adnd2e::derivedExperiencePoints($entries, 0));
+    }
+
+    public function test_backfill_xp_rules_do_not_split_multi_class(): void
+    {
+        $single = Adnd2e::backfillClassLevelsXp(
+            [['class' => 'Cleric', 'level' => 10]],
+            'single',
+            250000,
+        );
+        $this->assertSame(250000, $single[0]['xp']);
+
+        $dual = Adnd2e::backfillClassLevelsXp([
+            ['class' => 'Psionicist', 'level' => 9],
+            ['class' => 'Fighter', 'level' => 10],
+        ], 'dual', 760016);
+        $this->assertArrayNotHasKey('xp', $dual[0]);
+        $this->assertSame(760016, $dual[1]['xp']);
+
+        $multi = Adnd2e::backfillClassLevelsXp([
+            ['class' => 'Fighter', 'level' => 10],
+            ['class' => 'Mage', 'level' => 13],
+            ['class' => 'Cleric', 'level' => 11],
+        ], 'multi', 1275942);
+        $this->assertArrayNotHasKey('xp', $multi[0]);
+        $this->assertArrayNotHasKey('xp', $multi[1]);
+        $this->assertArrayNotHasKey('xp', $multi[2]);
+
+        $this->assertSame('FR 500k · Wiz 750k', Adnd2e::formatClassXpLine([
+            ['class' => 'Fighter', 'level' => 11, 'xp' => 500000],
+            ['class' => 'Mage', 'level' => 12, 'xp' => 750000],
+        ], 'multi', true, true));
+        $this->assertSame('PSI — · FR 760,016', Adnd2e::formatClassXpLine($dual, 'dual', false, false));
+    }
 }

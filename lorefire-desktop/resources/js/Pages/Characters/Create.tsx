@@ -10,7 +10,7 @@ import { KitField } from '@/Components/KitField'
 import { PsionicistSheetFields } from '@/Components/PsionicistSheetFields'
 import {
   ALIGNMENTS, RACES,
-  ClassPath, combinedHitDie, combinedThac0, formatSigned, hasPsionicist, movementRate, primaryAdjustment,
+  ClassPath, combinedHitDie, combinedThac0, derivedExperiencePoints, formatSigned, hasPsionicist, movementRate, primaryAdjustment,
 } from '@/lib/adnd2e'
 
 interface Props {
@@ -21,11 +21,11 @@ interface Props {
 export default function Create({ campaign, campaigns }: Props) {
   const standalone = campaign === null
 
-  const { data, setData, post, processing, errors } = useForm({
+  const { data, setData, post, transform, processing, errors } = useForm({
     name: '', player_name: '', race: '', subrace: '', class: '', subclass: '',
     class_path: 'single' as ClassPath,
     class_levels: [{ class: '', level: 1 }],
-    level: 1, background: '', alignment: '',
+    level: 1, experience_points: 0, background: '', alignment: '',
     strength: 10, exceptional_strength: '', dexterity: 10, constitution: 10,
     intelligence: 10, wisdom: 10, charisma: 10,
     max_hp: 8, current_hp: 8, armor_class: 10, speed: 12,
@@ -33,6 +33,17 @@ export default function Create({ campaign, campaigns }: Props) {
     psp_current: null as number | null,
     psp_max: null as number | null,
     psionic_powers: [] as string[],
+  })
+
+  transform((d) => {
+    const class_levels = d.class_path === 'single' && d.class_levels[0]
+      ? [{ ...d.class_levels[0], xp: Math.max(0, Number(d.experience_points) || 0) }]
+      : d.class_levels
+    return {
+      ...d,
+      class_levels,
+      experience_points: derivedExperiencePoints(class_levels, d.experience_points),
+    }
   })
 
   const submit = (e: React.FormEvent) => {
@@ -117,6 +128,21 @@ export default function Create({ campaign, campaigns }: Props) {
             }}
           />
           {errors.class && <p className="text-xs text-[var(--color-danger)]">{errors.class}</p>}
+
+          {data.class_path === 'single' && (
+            <Input
+              label="Experience Points"
+              type="number"
+              min={0}
+              value={data.experience_points}
+              onChange={e => {
+                const xp = Math.max(0, parseInt(e.target.value) || 0)
+                setData('experience_points', xp)
+                const first = data.class_levels[0] ?? { class: '', level: 1 }
+                setData('class_levels', [{ ...first, xp }])
+              }}
+            />
+          )}
 
           <KitField
             race={data.race}

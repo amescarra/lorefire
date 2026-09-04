@@ -174,8 +174,8 @@ export default function Show({ campaign, imageGenProvider }: Props) {
               )}
             </div>
             <div className="flex gap-2 shrink-0">
-              <Button variant="ghost" onClick={pdf.trigger} disabled={pdf.status === 'pending'} size="sm">
-                {pdf.status === 'pending' ? 'Generating PDF...' : pdf.status === 'done' ? 'PDF Saved!' : pdf.status === 'failed' ? 'Export Failed' : 'Export PDF'}
+              <Button variant="ghost" onClick={() => pdf.trigger()} disabled={pdf.status === 'pending'} size="sm">
+                {pdf.status === 'pending' ? 'Generating PDF…' : pdf.status === 'done' ? 'PDF Saved!' : pdf.status === 'preview' ? 'Opening print preview…' : pdf.status === 'failed' ? 'Export Failed' : 'Export PDF'}
               </Button>
               <Button variant="ghost" as="a" href={`/campaigns/${campaign.id}/edit`} size="sm">
                 Edit
