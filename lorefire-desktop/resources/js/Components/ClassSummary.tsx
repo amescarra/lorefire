@@ -34,7 +34,7 @@ export function ClassSummary({ character, showXp = true }: Props) {
 
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <Badge variant="rune">{levelsLine}</Badge>
+      <Badge variant="rune" className="normal-case tracking-wider">{levelsLine}</Badge>
       {showXp && xpLine && (
         <span className="text-[10px] font-mono text-[var(--color-text-dim)] tracking-wide truncate">
           {xpLine}

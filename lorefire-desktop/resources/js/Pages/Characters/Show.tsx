@@ -164,7 +164,7 @@ export default function Show({ campaign, character, imageGenProvider }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-heading text-2xl text-[var(--color-text-white)] tracking-widest uppercase">{character.name}</h1>
-              <Badge variant="rune">{classLevelsLine || `Level ${character.level}`}</Badge>
+              <Badge variant="rune" className="normal-case tracking-wider">{classLevelsLine || `Level ${character.level}`}</Badge>
               {character.class_path && character.class_path !== 'single' && (
                 <Badge variant="muted">{character.class_path === 'dual' ? 'Dual-class' : 'Multi-class'}</Badge>
               )}
